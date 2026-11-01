@@ -74,6 +74,7 @@ const (
 	Operation_LerpVec    Operation = 41
 	Operation_MulMat     Operation = 42
 	Operation_Poly       Operation = 43
+	Operation_CosSin     Operation = 44
 )
 
 // IsBinaryScalar reports whether op is a binary scalar operation (11..16).
@@ -217,6 +218,8 @@ func (op Operation) String() string {
 		return "MulMat"
 	case Operation_Poly:
 		return "Poly"
+	case Operation_CosSin:
+		return "CosSin"
 	default:
 		return fmt.Sprintf("unknown[%d]", op)
 	}
@@ -474,6 +477,12 @@ func (b *Builder) Asin() *Builder {
 // Acos replaces the top value on the stack with acos(a) (a -> acos(a)).
 func (b *Builder) Acos() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Acos))
+	return b
+}
+
+// CosSin replaces the top value t on the stack with cos(t) and pushes sin(t) (t -> cos(t) sin(t)).
+func (b *Builder) CosSin() *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_CosSin))
 	return b
 }
 
@@ -900,6 +909,12 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 			}
 			stackLen = stackLen - 1 + cols
 			updateMax(stackLen)
+		case Operation_CosSin:
+			if stackLen < 1 {
+				return 0, 0, nil, ErrStackUnderflow
+			}
+			stackLen += 1
+			updateMax(stackLen)
 		default:
 			return 0, 0, nil, ErrUndefinedOperation
 		}
@@ -1196,6 +1211,10 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 				}
 				stack = append(stack, result...)
 			}
+		case Operation_CosSin:
+			t := pop()
+			s, c := math.Sincos(t)
+			stack = append(stack, c, s)
 		}
 	}
 	return stack

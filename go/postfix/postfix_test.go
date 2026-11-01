@@ -479,6 +479,24 @@ func TestEvalPostfixExpression(t *testing.T) {
 			wantErr: postfix.ErrStackUnderflow,
 		},
 		{
+			name:      "cossin 0",
+			expr:      postfix.MakeBuilder().CosSin().Build(),
+			stack:     []float64{0},
+			wantStack: []float64{1, 0},
+		},
+		{
+			name:      "cossin pi/2",
+			expr:      postfix.MakeBuilder().CosSin().Build(),
+			stack:     []float64{math.Pi / 2},
+			wantStack: []float64{0, 1},
+		},
+		{
+			name:    "cossin underflow",
+			expr:    postfix.MakeBuilder().CosSin().Build(),
+			stack:   []float64{},
+			wantErr: postfix.ErrStackUnderflow,
+		},
+		{
 			name:      "ipow positive",
 			expr:      postfix.MakeBuilder().Ipow(3).Build(),
 			stack:     []float64{0, 2},
@@ -928,6 +946,9 @@ func TestOperationString(t *testing.T) {
 	}
 	if got := postfix.Operation_Poly.String(); got != "Poly" {
 		t.Errorf("got %q, want %q", got, "Poly")
+	}
+	if got := postfix.Operation_CosSin.String(); got != "CosSin" {
+		t.Errorf("got %q, want %q", got, "CosSin")
 	}
 }
 

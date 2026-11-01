@@ -786,6 +786,28 @@ TEST(EvalTest, AcosStackUnderflow) {
   EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_StackUnderflow);
 }
 
+TEST(EvalTest, CosSin) {
+  WickedPostfixWriter writer;
+  writer.CosSin();
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {0, 0.5f});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 3), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_THAT(eval.stack(), ElementsAre(0, std::cos(0.5f), std::sin(0.5f)));
+}
+
+TEST(EvalTest, CosSinStackUnderflow) {
+  WickedPostfixWriter writer;
+  writer.CosSin();
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_StackUnderflow);
+}
+
 TEST(EvalTest, Ipow) {
   WickedPostfixWriter writer;
   writer.Ipow(3);
@@ -1616,6 +1638,7 @@ TEST(EvalTest, OpToString) {
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_PushVec), "PushVec");
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Ipow), "Ipow");
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Poly), "Poly");
+  EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_CosSin), "CosSin");
 }
 
 TEST(EvalTest, Predicates) {

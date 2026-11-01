@@ -79,6 +79,7 @@ typedef enum WickedPostfixOp {
   WickedPostfixOp_LerpVec   = 41,
   WickedPostfixOp_MulMat    = 42,
   WickedPostfixOp_Poly      = 43,
+  WickedPostfixOp_CosSin    = 44,
 } WickedPostfixOp_t;
 
 // Returns true if op is a binary scalar operation (11..16).
@@ -319,6 +320,9 @@ class WickedPostfixWriter {
 
   // Arc cosine of top value (a -> acos(a)).
   void Acos() { EmitOp(WickedPostfixOp_Acos); }
+
+  // Replaces t with cos(t) and pushes sin(t) (t -> cos(t) sin(t)).
+  void CosSin() { EmitOp(WickedPostfixOp_CosSin); }
 
   // Raises the top value to the integer exponent exp (a -> a ^ exp).
   void Ipow(int8_t exp) {

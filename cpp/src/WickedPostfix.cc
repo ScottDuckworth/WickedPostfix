@@ -1,4 +1,5 @@
 #include "WickedPostfix.h"
+#include "WickedUtil.hh"
 
 #include <algorithm>
 #include <bit>
@@ -66,6 +67,7 @@ extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
     case WickedPostfixOp_LerpVec:   return "LerpVec";
     case WickedPostfixOp_MulMat:    return "MulMat";
     case WickedPostfixOp_Poly:      return "Poly";
+    case WickedPostfixOp_CosSin:    return "CosSin";
   }
   return "UNKNOWN";
 }
@@ -208,6 +210,13 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t BinaryOp(ValidationContext& ctx) {
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t UnaryOp(ValidationContext& ctx) {
   if (ctx.stack_depth < 1) return WickedEvalStatus_StackUnderflow;
+  return WickedEvalStatus_Ok;
+}
+
+WICKED_ALWAYS_INLINE WickedEvalStatus_t CosSin(ValidationContext& ctx) {
+  if (ctx.stack_depth < 1) return WickedEvalStatus_StackUnderflow;
+  ctx.stack_depth += 1;
+  ctx.update_max(ctx.stack_depth);
   return WickedEvalStatus_Ok;
 }
 
@@ -366,6 +375,7 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, ui
       case WickedPostfixOp_LerpVec:   status = validate::LerpVec(ctx); break;
       case WickedPostfixOp_MulMat:    status = validate::MulMat(ctx); break;
       case WickedPostfixOp_Poly:      status = validate::Poly(ctx); break;
+      case WickedPostfixOp_CosSin:    status = validate::CosSin(ctx); break;
       default:
         return WickedEvalStatus_UndefinedOperation;
     }
@@ -590,6 +600,13 @@ WICKED_ALWAYS_INLINE void Asin(EvalContext& ctx) {
 
 WICKED_ALWAYS_INLINE void Acos(EvalContext& ctx) {
   ctx.peek() = std::acos(ctx.peek());
+}
+
+WICKED_ALWAYS_INLINE void CosSin(EvalContext& ctx) {
+  float s, c;
+  wicked_sincosf(ctx.peek(), &s, &c);
+  ctx.peek() = c;
+  ctx.push(s);
 }
 
 WICKED_ALWAYS_INLINE void Ipow(EvalContext& ctx) {
@@ -868,6 +885,7 @@ extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_si
       case WickedPostfixOp_LerpVec:   ops::LerpVec(ctx); break;
       case WickedPostfixOp_MulMat:    ops::MulMat(ctx); break;
       case WickedPostfixOp_Poly:      ops::Poly(ctx); break;
+      case WickedPostfixOp_CosSin:    ops::CosSin(ctx); break;
       default:
         break;
     }
