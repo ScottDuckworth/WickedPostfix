@@ -644,11 +644,11 @@ WICKED_ALWAYS_INLINE void Ln(EvalContext& ctx) {
 #endif
 
 WICKED_ALWAYS_INLINE void Sin(EvalContext& ctx) {
-  ctx.peek() = std::sin(ctx.peek());
+  ctx.peek() = wicked_sinf(ctx.peek());
 }
 
 WICKED_ALWAYS_INLINE void Cos(EvalContext& ctx) {
-  ctx.peek() = std::cos(ctx.peek());
+  ctx.peek() = wicked_cosf(ctx.peek());
 }
 
 #ifndef WICKED_POSTFIX_NO_EXTENDED_TRIG

@@ -78,6 +78,7 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 For flash-constrained microcontrollers (e.g., STM32 with 32 KB or 64 KB flash), compile-time preprocessor flags allow dead-stripping standard library `libm` math functions:
 
 * **`-DWICKED_POSTFIX_SLIM`**: Disables both non-core exponential/power math (`Pow`, `Exp`, `Ln`) and extended trigonometry (`Tan`, `Asin`, `Acos`).
+* **`-DWICKED_USE_CMSIS_DSP`**: Routes `Sin`, `Cos`, and `CosSin` to ARM CMSIS-DSP (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`), eliminating Newlib's ~3.1 KB range-reduction engine. Custom overrides `WICKED_CUSTOM_SIN(t)`, `WICKED_CUSTOM_COS(t)`, and `WICKED_CUSTOM_SINCOS(t, s, c)` may also be provided directly.
 * **`-DWICKED_POSTFIX_NO_EXP_MATH`**: Disables `Pow`, `Exp`, `Ln` (eliminates `powf`, `expf`, and `logf`).
 * **`-DWICKED_POSTFIX_NO_EXTENDED_TRIG`**: Disables `Tan`, `Asin`, `Acos` (eliminates `asinf`, `acosf`, and `tanf`).
 
@@ -103,6 +104,14 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 | :--- | :---: | :---: | :---: |
 | **STM32G4** (Cortex-M4F) | **3,305 B** (~3.2 KB) | **8,764 B** (~8.6 KB) | **5,104 B (~5.0 KB)** |
 | **ESP32-S3** (Xtensa LX7) | **4,396 B** (~4.3 KB) | **10,064 B** (~9.8 KB) | **5,376 B (~5.3 KB)** |
+
+#### Slim Profile with CMSIS-DSP (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_CMSIS_DSP`)
+
+Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated functions (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`), evaluating only the required function and completely dead-stripping Newlib's ~3.1 KB Payne-Hanek range reduction subsystem:
+
+| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Full | Transitive Savings vs. Slim |
+| :--- | :---: | :---: | :---: | :---: |
+| **STM32G4** (Cortex-M4F) | **3,305 B** (~3.2 KB) | **7,080 B** (~6.9 KB) | **6,788 B (~6.6 KB)** | **1,684 B (~1.6 KB)** |
 
 #### Section Breakdown (STM32G4, Thumb-2)
 * **Bytecode Validation (`WickedPostfixValidate`)**: ~622 B `.text`
