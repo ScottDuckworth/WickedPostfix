@@ -78,7 +78,7 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 For flash-constrained microcontrollers (e.g., STM32 with 32 KB or 64 KB flash), compile-time preprocessor flags allow dead-stripping standard library `libm` math functions:
 
 * **`-DWICKED_POSTFIX_SLIM`**: Disables both non-core exponential/power math (`Pow`, `Exp`, `Ln`) and extended trigonometry (`Tan`, `Asin`, `Acos`).
-* **`-DWICKED_USE_STM32_CORDIC`**: Routes `Sin`, `Cos`, and `CosSin` to the hardware CORDIC co-processor on STM32G4 microcontrollers (`CORDIC->CSR`, `CORDIC->WDATA`, `CORDIC->RDATA`). Computes trigonometric functions in 4–8 CPU cycles with **0 bytes of lookup tables**, capturing **~4.1 KB** of flash savings vs. standard Slim.
+* **`-DWICKED_USE_STM32_CORDIC`**: Routes `Sin`, `Cos`, and `CosSin` to the hardware CORDIC co-processor on STM32 microcontrollers (STM32G4, STM32H5, STM32U5, STM32H7R/S). Automatically detects the family header (`stm32g4xx.h`, `stm32h5xx.h`, `stm32u5xx.h`, etc.) or accepts custom overrides via `-DWICKED_STM32_HEADER="<header.h>"`. Computes trigonometric functions in 4–8 CPU cycles with **0 bytes of lookup tables**, capturing **~4.1 KB** of flash savings vs. standard Slim.
 * **`-DWICKED_USE_CMSIS_DSP`**: Routes `Sin`, `Cos`, and `CosSin` to ARM CMSIS-DSP (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`), eliminating Newlib's ~3.1 KB range-reduction engine. Custom overrides `WICKED_CUSTOM_SIN(t)`, `WICKED_CUSTOM_COS(t)`, and `WICKED_CUSTOM_SINCOS(t, s, c)` may also be provided directly.
 * **`-DWICKED_POSTFIX_NO_EXP_MATH`**: Disables `Pow`, `Exp`, `Ln` (eliminates `powf`, `expf`, and `logf`).
 * **`-DWICKED_POSTFIX_NO_EXTENDED_TRIG`**: Disables `Tan`, `Asin`, `Acos` (eliminates `asinf`, `acosf`, and `tanf`).
@@ -116,7 +116,7 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 
 #### Slim Profile with Hardware CORDIC (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_STM32_CORDIC`)
 
-Leverages STM32G4's on-chip CORDIC hardware accelerator for trigonometric evaluation (`Sin`, `Cos`, `CosSin`). Because CORDIC executes in hardware registers with zero lookup tables, it eliminates Newlib's ~3.1 KB range-reduction machinery without paying CMSIS-DSP's ~1.4 KB table penalty:
+Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5, STM32H7R/S) for trigonometric evaluation (`Sin`, `Cos`, `CosSin`). Because CORDIC executes in hardware registers with zero lookup tables, it eliminates Newlib's ~3.1 KB range-reduction machinery without paying CMSIS-DSP's ~1.4 KB table penalty:
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Slim |
 | :--- | :---: | :---: | :---: |

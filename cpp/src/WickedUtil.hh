@@ -3,9 +3,33 @@
 #include <cmath>
 
 #if defined(WICKED_USE_STM32_CORDIC)
+#if defined(CORDIC)
+// CORDIC peripheral already defined by previously included device header.
+#elif defined(WICKED_STM32_HEADER)
+#include WICKED_STM32_HEADER
+#elif defined(__has_include)
+#if __has_include("stm32g4xx.h")
 #include "stm32g4xx.h"
+#elif __has_include("stm32h5xx.h")
+#include "stm32h5xx.h"
+#elif __has_include("stm32u5xx.h")
+#include "stm32u5xx.h"
+#elif __has_include("stm32h7rsxx.h")
+#include "stm32h7rsxx.h"
+#else
+#include "stm32g4xx.h"
+#endif
+#elif defined(STM32H5) || defined(STM32H5xx)
+#include "stm32h5xx.h"
+#elif defined(STM32U5) || defined(STM32U5xx)
+#include "stm32u5xx.h"
+#elif defined(STM32H7RS) || defined(STM32H7RSxx)
+#include "stm32h7rsxx.h"
+#else
+#include "stm32g4xx.h"
+#endif
 
-// Hardware CORDIC coprocessor driver for STM32G4.
+// Hardware CORDIC coprocessor driver for STM32 (STM32G4, STM32H5, STM32U5, STM32H7R/S).
 // Computes sine and cosine in hardware with 0 bytes of lookup tables.
 static inline void wicked_cordic_sincosf(float t, float* s, float* c) {
   // Normalize t in radians to [-1.0f, 1.0f) representing [-pi, pi]
