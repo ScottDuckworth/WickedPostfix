@@ -78,6 +78,7 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 For flash-constrained microcontrollers (e.g., STM32 with 32 KB or 64 KB flash), compile-time preprocessor flags allow dead-stripping standard library `libm` math functions:
 
 * **`-DWICKED_POSTFIX_SLIM`**: Disables both non-core exponential/power math (`Pow`, `Exp`, `Ln`) and extended trigonometry (`Tan`, `Asin`, `Acos`).
+* **`-DWICKED_USE_STM32_CORDIC`**: Routes `Sin`, `Cos`, and `CosSin` to the hardware CORDIC co-processor on STM32G4 microcontrollers (`CORDIC->CSR`, `CORDIC->WDATA`, `CORDIC->RDATA`). Computes trigonometric functions in 4–8 CPU cycles with **0 bytes of lookup tables**, capturing **~4.1 KB** of flash savings vs. standard Slim.
 * **`-DWICKED_USE_CMSIS_DSP`**: Routes `Sin`, `Cos`, and `CosSin` to ARM CMSIS-DSP (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`), eliminating Newlib's ~3.1 KB range-reduction engine. Custom overrides `WICKED_CUSTOM_SIN(t)`, `WICKED_CUSTOM_COS(t)`, and `WICKED_CUSTOM_SINCOS(t, s, c)` may also be provided directly.
 * **`-DWICKED_POSTFIX_NO_EXP_MATH`**: Disables `Pow`, `Exp`, `Ln` (eliminates `powf`, `expf`, and `logf`).
 * **`-DWICKED_POSTFIX_NO_EXTENDED_TRIG`**: Disables `Tan`, `Asin`, `Acos` (eliminates `asinf`, `acosf`, and `tanf`).
@@ -112,6 +113,20 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Slim |
 | :--- | :---: | :---: | :---: |
 | **STM32G4** (Cortex-M4F) | **3,305 B** (~3.2 KB) | **7,080 B** (~6.9 KB) | **1,684 B (~1.6 KB)** |
+
+#### Slim Profile with Hardware CORDIC (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_STM32_CORDIC`)
+
+Leverages STM32G4's on-chip CORDIC hardware accelerator for trigonometric evaluation (`Sin`, `Cos`, `CosSin`). Because CORDIC executes in hardware registers with zero lookup tables, it eliminates Newlib's ~3.1 KB range-reduction machinery without paying CMSIS-DSP's ~1.4 KB table penalty:
+
+| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Slim |
+| :--- | :---: | :---: | :---: |
+| **STM32G4** (Cortex-M4F) | **3,457 B** (~3.4 KB) | **4,688 B** (~4.6 KB) | **4,076 B (~4.0 KB)** |
+
+> [!NOTE]
+> **Firmware Considerations for CORDIC:**
+> * **Clock Enable:** The firmware must enable the CORDIC peripheral clock during system initialization before executing expressions (e.g., `__HAL_RCC_CORDIC_CLK_ENABLE()` or `LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_CORDIC)`). Accessing CORDIC registers with the peripheral clock disabled triggers a hardware fault.
+> * **Re-entrancy & Concurrency:** The CORDIC co-processor is stateful (`CSR`, `WDATA`, `RDATA`). If expressions are evaluated concurrently across multiple RTOS threads or inside high-priority interrupts while other firmware tasks use CORDIC, register access must be guarded by a mutex/critical section or dedicated to the expression engine.
+> * **Range Reduction:** The embedded CORDIC helper automatically maps arbitrary angles in radians to $[-1.0, 1.0)$ representing $[-\pi, \pi]$ using integer truncation, requiring zero table lookups or standard library calls.
 
 #### Section Breakdown (STM32G4, Thumb-2)
 * **Bytecode Validation (`WickedPostfixValidate`)**: ~622 B `.text`
