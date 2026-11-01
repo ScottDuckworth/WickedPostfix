@@ -85,17 +85,24 @@ When disabled, programs attempting to evaluate these opcodes are rejected during
 
 ### Flash Memory Footprint (Reading & Evaluation Suite)
 
-The table below reports measured flash memory consumption compiled with `-Os` for the execution and reading suite (`WickedPostfixValidate`, `WickedPostfixEvaluate`, `WickedPostfixRead`, and `WickedPostfixOpToString`), excluding `WickedPostfixWriter`.
+The tables below report measured flash memory consumption compiled with `-Os` for the execution and reading suite (`WickedPostfixValidate`, `WickedPostfixEvaluate`, `WickedPostfixRead`, and `WickedPostfixOpToString`), excluding `WickedPostfixWriter`.
 
 * **Library-Only Flash**: Code and constant rodata generated directly by `WickedPostfix` functions in `WickedPostfix.cc`.
 * **Transitive Flash**: Net flash delta added to a linked firmware binary with linker dead-stripping (`-Wl,--gc-sections`), capturing the library code plus all transitive standard library (`libm` / Newlib) dependencies.
 
-| Target Architecture | Profile | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Flash Savings vs. Full |
-| :--- | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **Full** | **3,369 B** (~3.3 KB) | **13,868 B** (~13.5 KB) | — |
-| **STM32G4** (Cortex-M4F) | **Slim** (`-DWICKED_POSTFIX_SLIM`) | **3,305 B** (~3.2 KB) | **8,764 B** (~8.6 KB) | **5,104 B (~5.0 KB)** |
-| **ESP32-S3** (Xtensa LX7) | **Full** | **4,519 B** (~4.4 KB) | **15,440 B** (~15.1 KB) | — |
-| **ESP32-S3** (Xtensa LX7) | **Slim** (`-DWICKED_POSTFIX_SLIM`) | **4,396 B** (~4.3 KB) | **10,064 B** (~9.8 KB) | **5,376 B (~5.3 KB)** |
+#### Full Profile (Default: All 47 Opcodes)
+
+| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |
+| :--- | :---: | :---: |
+| **STM32G4** (Cortex-M4F) | **3,369 B** (~3.3 KB) | **13,868 B** (~13.5 KB) |
+| **ESP32-S3** (Xtensa LX7) | **4,519 B** (~4.4 KB) | **15,440 B** (~15.1 KB) |
+
+#### Slim Profile (`-DWICKED_POSTFIX_SLIM`)
+
+| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Full |
+| :--- | :---: | :---: | :---: |
+| **STM32G4** (Cortex-M4F) | **3,305 B** (~3.2 KB) | **8,764 B** (~8.6 KB) | **5,104 B (~5.0 KB)** |
+| **ESP32-S3** (Xtensa LX7) | **4,396 B** (~4.3 KB) | **10,064 B** (~9.8 KB) | **5,376 B (~5.3 KB)** |
 
 #### Section Breakdown (STM32G4, Thumb-2)
 * **Bytecode Validation (`WickedPostfixValidate`)**: ~622 B `.text`
