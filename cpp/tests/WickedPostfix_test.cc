@@ -908,6 +908,30 @@ TEST(EvalTest, CosSinStackUnderflow) {
   EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_StackUnderflow);
 }
 
+TEST(EvalTest, PanTilt) {
+  WickedPostfixWriter writer;
+  writer.PanTilt();
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {0.0f, 3.0f, 4.0f, 5.0f});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 3), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  float expected_pan = std::atan2(4.0f, 3.0f);
+  float expected_tilt = std::atan2(5.0f, 5.0f);
+  EXPECT_THAT(eval.stack(), ElementsAre(0.0f, expected_pan, expected_tilt));
+}
+
+TEST(EvalTest, PanTiltStackUnderflow) {
+  WickedPostfixWriter writer;
+  writer.PanTilt();
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {1.0f, 2.0f});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_StackUnderflow);
+}
+
 TEST(EvalTest, Ipow) {
   WickedPostfixWriter writer;
   writer.Ipow(3);
@@ -1739,6 +1763,7 @@ TEST(EvalTest, OpToString) {
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Ipow), "Ipow");
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Poly), "Poly");
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_CosSin), "CosSin");
+  EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_PanTilt), "PanTilt");
 }
 
 TEST(EvalTest, Predicates) {

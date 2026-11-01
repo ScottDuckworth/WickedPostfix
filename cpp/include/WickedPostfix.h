@@ -82,6 +82,7 @@ typedef enum WickedPostfixOp {
   WickedPostfixOp_MulMat    = 44,
   WickedPostfixOp_Poly      = 45,
   WickedPostfixOp_CosSin    = 46,
+  WickedPostfixOp_PanTilt   = 47,
 } WickedPostfixOp_t;
 
 // Returns true if op is a binary scalar operation (13..18).
@@ -341,6 +342,9 @@ class WickedPostfixWriter {
 
   // Replaces t with cos(t) and pushes sin(t) (t -> cos(t) sin(t)).
   void CosSin() { EmitOp(WickedPostfixOp_CosSin); }
+
+  // Transforms a 3D line-of-sight vector [v0, v1, v2] into [pan, tilt] (v[3] -> pan tilt).
+  void PanTilt() { EmitOp(WickedPostfixOp_PanTilt); }
 
   // Raises the top value to the integer exponent exp (a -> a ^ exp).
   void Ipow(int8_t exp) {

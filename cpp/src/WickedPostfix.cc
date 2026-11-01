@@ -70,6 +70,7 @@ extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
     case WickedPostfixOp_MulMat:    return "MulMat";
     case WickedPostfixOp_Poly:      return "Poly";
     case WickedPostfixOp_CosSin:    return "CosSin";
+    case WickedPostfixOp_PanTilt:   return "PanTilt";
   }
   return "UNKNOWN";
 }
@@ -243,6 +244,12 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t CosSin(ValidationContext& ctx) {
   return WickedEvalStatus_Ok;
 }
 
+WICKED_ALWAYS_INLINE WickedEvalStatus_t PanTilt(ValidationContext& ctx) {
+  if (ctx.stack_depth < 3) return WickedEvalStatus_StackUnderflow;
+  ctx.stack_depth -= 1;
+  return WickedEvalStatus_Ok;
+}
+
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Ipow(ValidationContext& ctx) {
   if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
   ctx.skip(1);
@@ -401,6 +408,7 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, ui
       case WickedPostfixOp_MulMat:    status = validate::MulMat(ctx); break;
       case WickedPostfixOp_Poly:      status = validate::Poly(ctx); break;
       case WickedPostfixOp_CosSin:    status = validate::CosSin(ctx); break;
+      case WickedPostfixOp_PanTilt:   status = validate::PanTilt(ctx); break;
       default:
         return WickedEvalStatus_UndefinedOperation;
     }
@@ -649,6 +657,16 @@ WICKED_ALWAYS_INLINE void CosSin(EvalContext& ctx) {
   wicked_sincosf(ctx.peek(), &s, &c);
   ctx.peek() = c;
   ctx.push(s);
+}
+
+WICKED_ALWAYS_INLINE void PanTilt(EvalContext& ctx) {
+  float v2 = ctx.sp[-1];
+  float v1 = ctx.sp[-2];
+  float v0 = ctx.sp[-3];
+  float r = std::sqrt(v0 * v0 + v1 * v1);
+  ctx.sp[-3] = std::atan2(v1, v0);
+  ctx.sp[-2] = std::atan2(v2, r);
+  --ctx.sp;
 }
 
 WICKED_ALWAYS_INLINE void Ipow(EvalContext& ctx) {
@@ -931,6 +949,7 @@ extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_si
       case WickedPostfixOp_MulMat:    ops::MulMat(ctx); break;
       case WickedPostfixOp_Poly:      ops::Poly(ctx); break;
       case WickedPostfixOp_CosSin:    ops::CosSin(ctx); break;
+      case WickedPostfixOp_PanTilt:   ops::PanTilt(ctx); break;
       default:
         break;
     }

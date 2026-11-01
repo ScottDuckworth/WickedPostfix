@@ -77,6 +77,7 @@ const (
 	Operation_MulMat     Operation = 44
 	Operation_Poly       Operation = 45
 	Operation_CosSin     Operation = 46
+	Operation_PanTilt    Operation = 47
 )
 
 // IsBinaryScalar reports whether op is a binary scalar operation (13..18).
@@ -226,6 +227,8 @@ func (op Operation) String() string {
 		return "Poly"
 	case Operation_CosSin:
 		return "CosSin"
+	case Operation_PanTilt:
+		return "PanTilt"
 	default:
 		return fmt.Sprintf("unknown[%d]", op)
 	}
@@ -513,6 +516,12 @@ func (b *Builder) Acos() *Builder {
 // CosSin replaces the top value t on the stack with cos(t) and pushes sin(t) (t -> cos(t) sin(t)).
 func (b *Builder) CosSin() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_CosSin))
+	return b
+}
+
+// PanTilt transforms a 3D line-of-sight vector [v0, v1, v2] on the stack into [pan, tilt] (v[3] -> pan tilt).
+func (b *Builder) PanTilt() *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_PanTilt))
 	return b
 }
 
@@ -968,6 +977,11 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 			}
 			stackLen += 1
 			updateMax(stackLen)
+		case Operation_PanTilt:
+			if stackLen < 3 {
+				return 0, 0, nil, ErrStackUnderflow
+			}
+			stackLen -= 1
 		default:
 			return 0, 0, nil, ErrUndefinedOperation
 		}
@@ -1279,6 +1293,12 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 			t := pop()
 			s, c := math.Sincos(t)
 			stack = append(stack, c, s)
+		case Operation_PanTilt:
+			v2 := pop()
+			v1 := pop()
+			v0 := pop()
+			r := math.Sqrt(v0*v0 + v1*v1)
+			stack = append(stack, math.Atan2(v1, v0), math.Atan2(v2, r))
 		}
 	}
 	return stack

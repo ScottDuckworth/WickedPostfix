@@ -553,6 +553,18 @@ func TestEvalPostfixExpression(t *testing.T) {
 			wantErr: postfix.ErrStackUnderflow,
 		},
 		{
+			name:      "pantilt",
+			expr:      postfix.MakeBuilder().PanTilt().Build(),
+			stack:     []float64{0, 3, 4, 5},
+			wantStack: []float64{0, math.Atan2(4, 3), math.Atan2(5, 5)},
+		},
+		{
+			name:    "pantilt underflow",
+			expr:    postfix.MakeBuilder().PanTilt().Build(),
+			stack:   []float64{1, 2},
+			wantErr: postfix.ErrStackUnderflow,
+		},
+		{
 			name:      "ipow positive",
 			expr:      postfix.MakeBuilder().Ipow(3).Build(),
 			stack:     []float64{0, 2},
@@ -1011,6 +1023,9 @@ func TestOperationString(t *testing.T) {
 	}
 	if got := postfix.Operation_CosSin.String(); got != "CosSin" {
 		t.Errorf("got %q, want %q", got, "CosSin")
+	}
+	if got := postfix.Operation_PanTilt.String(); got != "PanTilt" {
+		t.Errorf("got %q, want %q", got, "PanTilt")
 	}
 }
 
