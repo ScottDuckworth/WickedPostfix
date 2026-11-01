@@ -87,14 +87,15 @@ These flags omit specific non-core operations from the evaluator, allowing the l
 When opcodes are disabled via these flags, programs attempting to evaluate them are rejected during validation (`WickedPostfixValidate`) with `WickedEvalStatus_UndefinedOperation`.
 
 #### 2. Trigonometric Hardware Acceleration & Alternative Backends
-These flags **do not disable any opcodes**; all operations (`Sin`, `Cos`, and `CosSin`) remain fully supported and validated. Instead, they replace Newlib's ~3.1 KB software range-reduction machinery with lightweight hardware or DSP alternatives:
+These flags **do not disable any opcodes**; all operations (`Sin`, `Cos`, `CosSin`, and `Atan2`) remain fully supported and validated. Instead, they replace Newlib's ~3.1 KB software range-reduction machinery and ~0.8 KB arctangent engine with lightweight hardware or DSP alternatives:
 
-* **`-DWICKED_USE_STM32_CORDIC`**: Routes `Sin`, `Cos`, and `CosSin` to the hardware CORDIC co-processor on STM32 microcontrollers (STM32G4, STM32H5, STM32U5, STM32H7R/S). Automatically discovers family headers (`stm32g4xx.h`, `stm32h5xx.h`, `stm32u5xx.h`, etc.) or accepts custom overrides via `-DWICKED_STM32_HEADER="<header.h>"`. Computes trigonometric functions in 4–8 CPU cycles with **0 bytes of lookup tables**, capturing **~4.1 KB** of flash savings vs. standard Slim.
+* **`-DWICKED_USE_STM32_CORDIC`**: Routes `Sin`, `Cos`, `CosSin`, and `Atan2` (along with `PanTilt`) to the hardware CORDIC co-processor on STM32 microcontrollers (STM32G4, STM32H5, STM32U5, STM32H7R/S). Automatically discovers family headers (`stm32g4xx.h`, `stm32h5xx.h`, `stm32u5xx.h`, etc.) or accepts custom overrides via `-DWICKED_STM32_HEADER="<header.h>"`. Computes trigonometric functions in 4–8 CPU cycles with **0 bytes of lookup tables**, capturing **~4.8 KB** of flash savings vs. standard Slim and completely dead-stripping all Newlib trigonometric code.
 * **`-DWICKED_USE_CMSIS_DSP`**: Routes `Sin`, `Cos`, and `CosSin` to ARM CMSIS-DSP (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`), eliminating Newlib's ~3.1 KB range-reduction engine.
 * **Custom Backends**: Firmware targeting other hardware (e.g., TI TMU, NXP PowerQuad) can provide custom overrides directly:
   * `WICKED_CUSTOM_SIN(t)`
   * `WICKED_CUSTOM_COS(t)`
   * `WICKED_CUSTOM_SINCOS(t, s, c)`
+  * `WICKED_CUSTOM_ATAN2(y, x)`
 
 ### Flash Memory Footprint (Reading & Evaluation Suite)
 
@@ -127,17 +128,17 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 
 #### Slim Profile with Hardware CORDIC (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_STM32_CORDIC`)
 
-Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5, STM32H7R/S) for trigonometric evaluation (`Sin`, `Cos`, `CosSin`). Because CORDIC executes in hardware registers with zero lookup tables, it eliminates Newlib's ~3.1 KB range-reduction machinery without paying CMSIS-DSP's ~1.4 KB table penalty:
+Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5, STM32H7R/S) for trigonometric evaluation (`Sin`, `Cos`, `CosSin`, `Atan2`, and `PanTilt`). Because CORDIC executes in hardware registers with zero lookup tables, it completely dead-strips all Newlib trigonometric code and tables (`__kernel_rem_pio2f`, `two_over_pi`, `atan2f`, `atanf`), eliminating `libm` trigonometry from the binary:
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Slim |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,457 B** (~3.4 KB) | **4,688 B** (~4.6 KB) | **4,076 B (~4.0 KB)** |
+| **STM32G4** (Cortex-M4F) | **3,573 B** (~3.5 KB) | **3,976 B** (~3.9 KB) | **4,788 B (~4.7 KB)** |
 
 > [!NOTE]
 > **Firmware Considerations for CORDIC:**
 > * **Clock Enable:** The firmware must enable the CORDIC peripheral clock during system initialization before executing expressions (e.g., `__HAL_RCC_CORDIC_CLK_ENABLE()` or `LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_CORDIC)`). Accessing CORDIC registers with the peripheral clock disabled triggers a hardware fault.
 > * **Re-entrancy & Concurrency:** The CORDIC co-processor is stateful (`CSR`, `WDATA`, `RDATA`). If expressions are evaluated concurrently across multiple RTOS threads or inside high-priority interrupts while other firmware tasks use CORDIC, register access must be guarded by a mutex/critical section or dedicated to the expression engine.
-> * **Range Reduction:** The embedded CORDIC helper automatically maps arbitrary angles in radians to $[-1.0, 1.0)$ representing $[-\pi, \pi]$ using integer truncation, requiring zero table lookups or standard library calls.
+> * **Range & Scale Normalization:** The embedded CORDIC helper automatically maps arbitrary angles in radians to $[-1.0, 1.0)$ for $\sin$/$\cos$, and scales Cartesian inputs by $1 / \max(|x|, |y|)$ for $\text{atan2}$, requiring zero table lookups or standard library calls.
 
 #### Section Breakdown (STM32G4, Thumb-2)
 * **Bytecode Validation (`WickedPostfixValidate`)**: ~622 B `.text`

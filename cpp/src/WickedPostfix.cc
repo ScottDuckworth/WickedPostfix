@@ -614,7 +614,7 @@ WICKED_ALWAYS_INLINE void Pow(EvalContext& ctx) {
 
 WICKED_ALWAYS_INLINE void Atan2(EvalContext& ctx) {
   float x = ctx.pop();
-  ctx.peek() = std::atan2(ctx.peek(), x);
+  ctx.peek() = wicked_atan2f(ctx.peek(), x);
 }
 
 WICKED_ALWAYS_INLINE void Neg(EvalContext& ctx) {
@@ -677,8 +677,8 @@ WICKED_ALWAYS_INLINE void PanTilt(EvalContext& ctx) {
   float v1 = ctx.sp[-2];
   float v0 = ctx.sp[-3];
   float r = std::sqrt(v0 * v0 + v1 * v1);
-  ctx.sp[-3] = std::atan2(v1, v0);
-  ctx.sp[-2] = std::atan2(v2, r);
+  ctx.sp[-3] = wicked_atan2f(v1, v0);
+  ctx.sp[-2] = wicked_atan2f(v2, r);
   --ctx.sp;
 }
 

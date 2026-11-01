@@ -65,6 +65,27 @@ static inline float wicked_cordic_cosf(float t) {
   return c;
 }
 
+static inline float wicked_cordic_atan2f(float y, float x) {
+  float ax = std::abs(x);
+  float ay = std::abs(y);
+  float max_val = ax > ay ? ax : ay;
+  if (max_val == 0.0f) {
+    return 0.0f;
+  }
+  // Scale to [-0.5, 0.5] to strictly avoid Q1.31 overflow at +1.0
+  float scale = 1073741824.0f / max_val;
+  int32_t q31_x = static_cast<int32_t>(x * scale);
+  int32_t q31_y = static_cast<int32_t>(y * scale);
+
+  // Phase function (atan2): ARG1 = x, ARG2 = y. NARGS = 1 (2 arguments), NRES = 0 (1 result)
+  CORDIC->CSR = CORDIC_CSR_FUNC_1 | CORDIC_CSR_NARGS | (6U << CORDIC_CSR_PRECISION_Pos);
+  CORDIC->WDATA = static_cast<uint32_t>(q31_x);
+  CORDIC->WDATA = static_cast<uint32_t>(q31_y);
+
+  constexpr float kQ31ToPi = 3.14159265358979323846f / 2147483648.0f;
+  return static_cast<int32_t>(CORDIC->RDATA) * kQ31ToPi;
+}
+
 #ifndef WICKED_CUSTOM_SIN
 #define WICKED_CUSTOM_SIN(t) wicked_cordic_sinf(t)
 #endif
@@ -73,6 +94,9 @@ static inline float wicked_cordic_cosf(float t) {
 #endif
 #ifndef WICKED_CUSTOM_SINCOS
 #define WICKED_CUSTOM_SINCOS(t, s, c) wicked_cordic_sincosf((t), (s), (c))
+#endif
+#ifndef WICKED_CUSTOM_ATAN2
+#define WICKED_CUSTOM_ATAN2(y, x) wicked_cordic_atan2f((y), (x))
 #endif
 #elif defined(WICKED_USE_CMSIS_DSP)
 #include "arm_math.h"
@@ -107,6 +131,10 @@ static inline float wicked_cordic_cosf(float t) {
 #endif
 #endif
 
+#ifndef WICKED_CUSTOM_ATAN2
+#define WICKED_CUSTOM_ATAN2(y, x) std::atan2((y), (x))
+#endif
+
 // Computes sine.
 static inline float wicked_sinf(float t) {
   return WICKED_CUSTOM_SIN(t);
@@ -120,6 +148,11 @@ static inline float wicked_cosf(float t) {
 // Computes sine and cosine simultaneously.
 static inline void wicked_sincosf(float t, float* s, float* c) {
   WICKED_CUSTOM_SINCOS(t, s, c);
+}
+
+// Computes 2-argument arctangent atan2(y, x).
+static inline float wicked_atan2f(float y, float x) {
+  return WICKED_CUSTOM_ATAN2(y, x);
 }
 
 // Return the smallest index i in [first, last) at which pred(i) is true.
