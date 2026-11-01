@@ -73,17 +73,28 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 | 46 | `CosSin` | `t` → `cos(t) sin(t)` | Simultaneous scalar cosine and sine evaluation | *None* |
 | 47 | `PanTilt` | `v[3]` → `pan tilt` | Pan and tilt spherical angles from 3D line-of-sight vector $[v_0, v_1, v_2]$: $\text{pan} = \text{atan2}(v_1, v_0)$, $\text{tilt} = \text{atan2}(v_2, \sqrt{v_0^2 + v_1^2})$ | *None* |
 
-### Embedded Memory Profiles (C++)
+### Embedded Memory & Acceleration Flags (C++)
 
-For flash-constrained microcontrollers (e.g., STM32 with 32 KB or 64 KB flash), compile-time preprocessor flags allow dead-stripping standard library `libm` math functions:
+For flash-constrained microcontrollers (e.g., STM32 with 32 KB or 64 KB flash), compile-time preprocessor flags allow reducing flash consumption either by disabling unneeded opcodes to dead-strip standard library functions, or by routing active opcodes to hardware accelerators:
+
+#### 1. Opcode Disabling Flags (Feature Stripping)
+These flags omit specific non-core operations from the evaluator, allowing the linker (`-Wl,--gc-sections`) to dead-strip their underlying `libm` implementations:
 
 * **`-DWICKED_POSTFIX_SLIM`**: Disables both non-core exponential/power math (`Pow`, `Exp`, `Ln`) and extended trigonometry (`Tan`, `Asin`, `Acos`).
-* **`-DWICKED_USE_STM32_CORDIC`**: Routes `Sin`, `Cos`, and `CosSin` to the hardware CORDIC co-processor on STM32 microcontrollers (STM32G4, STM32H5, STM32U5, STM32H7R/S). Automatically detects the family header (`stm32g4xx.h`, `stm32h5xx.h`, `stm32u5xx.h`, etc.) or accepts custom overrides via `-DWICKED_STM32_HEADER="<header.h>"`. Computes trigonometric functions in 4–8 CPU cycles with **0 bytes of lookup tables**, capturing **~4.1 KB** of flash savings vs. standard Slim.
-* **`-DWICKED_USE_CMSIS_DSP`**: Routes `Sin`, `Cos`, and `CosSin` to ARM CMSIS-DSP (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`), eliminating Newlib's ~3.1 KB range-reduction engine. Custom overrides `WICKED_CUSTOM_SIN(t)`, `WICKED_CUSTOM_COS(t)`, and `WICKED_CUSTOM_SINCOS(t, s, c)` may also be provided directly.
-* **`-DWICKED_POSTFIX_NO_EXP_MATH`**: Disables `Pow`, `Exp`, `Ln` (eliminates `powf`, `expf`, and `logf`).
-* **`-DWICKED_POSTFIX_NO_EXTENDED_TRIG`**: Disables `Tan`, `Asin`, `Acos` (eliminates `asinf`, `acosf`, and `tanf`).
+* **`-DWICKED_POSTFIX_NO_EXP_MATH`**: Disables `Pow`, `Exp`, and `Ln` (eliminating `powf`, `expf`, and `logf`).
+* **`-DWICKED_POSTFIX_NO_EXTENDED_TRIG`**: Disables `Tan`, `Asin`, and `Acos` (eliminating `asinf`, `acosf`, and `tanf`).
 
-When disabled, programs attempting to evaluate these opcodes are rejected during validation with `WickedEvalStatus_UndefinedOperation`.
+When opcodes are disabled via these flags, programs attempting to evaluate them are rejected during validation (`WickedPostfixValidate`) with `WickedEvalStatus_UndefinedOperation`.
+
+#### 2. Trigonometric Hardware Acceleration & Alternative Backends
+These flags **do not disable any opcodes**; all operations (`Sin`, `Cos`, and `CosSin`) remain fully supported and validated. Instead, they replace Newlib's ~3.1 KB software range-reduction machinery with lightweight hardware or DSP alternatives:
+
+* **`-DWICKED_USE_STM32_CORDIC`**: Routes `Sin`, `Cos`, and `CosSin` to the hardware CORDIC co-processor on STM32 microcontrollers (STM32G4, STM32H5, STM32U5, STM32H7R/S). Automatically discovers family headers (`stm32g4xx.h`, `stm32h5xx.h`, `stm32u5xx.h`, etc.) or accepts custom overrides via `-DWICKED_STM32_HEADER="<header.h>"`. Computes trigonometric functions in 4–8 CPU cycles with **0 bytes of lookup tables**, capturing **~4.1 KB** of flash savings vs. standard Slim.
+* **`-DWICKED_USE_CMSIS_DSP`**: Routes `Sin`, `Cos`, and `CosSin` to ARM CMSIS-DSP (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`), eliminating Newlib's ~3.1 KB range-reduction engine.
+* **Custom Backends**: Firmware targeting other hardware (e.g., TI TMU, NXP PowerQuad) can provide custom overrides directly:
+  * `WICKED_CUSTOM_SIN(t)`
+  * `WICKED_CUSTOM_COS(t)`
+  * `WICKED_CUSTOM_SINCOS(t, s, c)`
 
 ### Flash Memory Footprint (Reading & Evaluation Suite)
 
