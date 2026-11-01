@@ -6,6 +6,20 @@
 #include <stdint.h>
 #include <string.h>
 
+// Postfix engine configuration profiles:
+// - WICKED_POSTFIX_SLIM: disables non-core exponential/power math (Pow, Exp, Ln)
+//   and extended trigonometry (Tan, Asin, Acos) to minimize flash on microcontrollers.
+// - WICKED_POSTFIX_NO_EXP_MATH: disables Pow, Exp, Ln (eliminates powf, expf, logf).
+// - WICKED_POSTFIX_NO_EXTENDED_TRIG: disables Tan, Asin, Acos (eliminates asinf, acosf, tanf).
+#if defined(WICKED_POSTFIX_SLIM)
+#ifndef WICKED_POSTFIX_NO_EXP_MATH
+#define WICKED_POSTFIX_NO_EXP_MATH
+#endif
+#ifndef WICKED_POSTFIX_NO_EXTENDED_TRIG
+#define WICKED_POSTFIX_NO_EXTENDED_TRIG
+#endif
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

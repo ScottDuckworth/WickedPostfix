@@ -378,19 +378,26 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, ui
       case WickedPostfixOp_Sub:
       case WickedPostfixOp_Mul:
       case WickedPostfixOp_Div:
+#ifndef WICKED_POSTFIX_NO_EXP_MATH
       case WickedPostfixOp_Pow:
+#endif
       case WickedPostfixOp_Atan2:     status = validate::BinaryOp(ctx); break;
       case WickedPostfixOp_Neg:
       case WickedPostfixOp_Abs:
       case WickedPostfixOp_Inv:
       case WickedPostfixOp_Sqrt:
+#ifndef WICKED_POSTFIX_NO_EXP_MATH
       case WickedPostfixOp_Exp:
       case WickedPostfixOp_Ln:
+#endif
       case WickedPostfixOp_Sin:
       case WickedPostfixOp_Cos:
+#ifndef WICKED_POSTFIX_NO_EXTENDED_TRIG
       case WickedPostfixOp_Tan:
       case WickedPostfixOp_Asin:
-      case WickedPostfixOp_Acos:      status = validate::UnaryOp(ctx); break;
+      case WickedPostfixOp_Acos:
+#endif
+      status = validate::UnaryOp(ctx); break;
       case WickedPostfixOp_Ipow:      status = validate::Ipow(ctx); break;
       case WickedPostfixOp_MulAdd:    status = validate::MulAdd(ctx); break;
       case WickedPostfixOp_PushVec:   status = validate::PushVec(ctx); break;
@@ -598,10 +605,12 @@ WICKED_ALWAYS_INLINE void Div(EvalContext& ctx) {
   ctx.peek() /= b;
 }
 
+#ifndef WICKED_POSTFIX_NO_EXP_MATH
 WICKED_ALWAYS_INLINE void Pow(EvalContext& ctx) {
   float b = ctx.pop();
   ctx.peek() = std::pow(ctx.peek(), b);
 }
+#endif
 
 WICKED_ALWAYS_INLINE void Atan2(EvalContext& ctx) {
   float x = ctx.pop();
@@ -624,6 +633,7 @@ WICKED_ALWAYS_INLINE void Sqrt(EvalContext& ctx) {
   ctx.peek() = std::sqrt(ctx.peek());
 }
 
+#ifndef WICKED_POSTFIX_NO_EXP_MATH
 WICKED_ALWAYS_INLINE void Exp(EvalContext& ctx) {
   ctx.peek() = std::exp(ctx.peek());
 }
@@ -631,6 +641,7 @@ WICKED_ALWAYS_INLINE void Exp(EvalContext& ctx) {
 WICKED_ALWAYS_INLINE void Ln(EvalContext& ctx) {
   ctx.peek() = std::log(ctx.peek());
 }
+#endif
 
 WICKED_ALWAYS_INLINE void Sin(EvalContext& ctx) {
   ctx.peek() = std::sin(ctx.peek());
@@ -640,6 +651,7 @@ WICKED_ALWAYS_INLINE void Cos(EvalContext& ctx) {
   ctx.peek() = std::cos(ctx.peek());
 }
 
+#ifndef WICKED_POSTFIX_NO_EXTENDED_TRIG
 WICKED_ALWAYS_INLINE void Tan(EvalContext& ctx) {
   ctx.peek() = std::tan(ctx.peek());
 }
@@ -651,6 +663,7 @@ WICKED_ALWAYS_INLINE void Asin(EvalContext& ctx) {
 WICKED_ALWAYS_INLINE void Acos(EvalContext& ctx) {
   ctx.peek() = std::acos(ctx.peek());
 }
+#endif
 
 WICKED_ALWAYS_INLINE void CosSin(EvalContext& ctx) {
   float s, c;
@@ -919,19 +932,25 @@ extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_si
       case WickedPostfixOp_Sub:       ops::Sub(ctx); break;
       case WickedPostfixOp_Mul:       ops::Mul(ctx); break;
       case WickedPostfixOp_Div:       ops::Div(ctx); break;
+#ifndef WICKED_POSTFIX_NO_EXP_MATH
       case WickedPostfixOp_Pow:       ops::Pow(ctx); break;
+#endif
       case WickedPostfixOp_Atan2:     ops::Atan2(ctx); break;
       case WickedPostfixOp_Neg:       ops::Neg(ctx); break;
       case WickedPostfixOp_Abs:       ops::Abs(ctx); break;
       case WickedPostfixOp_Inv:       ops::Inv(ctx); break;
       case WickedPostfixOp_Sqrt:      ops::Sqrt(ctx); break;
+#ifndef WICKED_POSTFIX_NO_EXP_MATH
       case WickedPostfixOp_Exp:       ops::Exp(ctx); break;
       case WickedPostfixOp_Ln:        ops::Ln(ctx); break;
+#endif
       case WickedPostfixOp_Sin:       ops::Sin(ctx); break;
       case WickedPostfixOp_Cos:       ops::Cos(ctx); break;
+#ifndef WICKED_POSTFIX_NO_EXTENDED_TRIG
       case WickedPostfixOp_Tan:       ops::Tan(ctx); break;
       case WickedPostfixOp_Asin:      ops::Asin(ctx); break;
       case WickedPostfixOp_Acos:      ops::Acos(ctx); break;
+#endif
       case WickedPostfixOp_Ipow:      ops::Ipow(ctx); break;
       case WickedPostfixOp_MulAdd:    ops::MulAdd(ctx); break;
       case WickedPostfixOp_PushVec:   ops::PushVec(ctx); break;

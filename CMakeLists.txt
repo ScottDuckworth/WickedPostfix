@@ -59,4 +59,15 @@ if(NOT WICKEDWINCHPROTOCOL_TESTING_DISABLED)
     WickedWinchProtocol
   )
   gtest_discover_tests(WickedPath_test)
+  add_executable(WickedPostfix_Slim_test
+    cpp/tests/WickedPostfix_Slim_test.cc
+    cpp/src/WickedPostfix.cc
+    cpp/src/WickedEvalStatus.cc
+  )
+  target_compile_definitions(WickedPostfix_Slim_test PRIVATE WICKED_POSTFIX_SLIM)
+  target_link_libraries(WickedPostfix_Slim_test
+    GTest::gmock
+    GTest::gtest_main
+  )
+  gtest_discover_tests(WickedPostfix_Slim_test)
 endif()
