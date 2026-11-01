@@ -77,9 +77,36 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 
 For flash-constrained microcontrollers (e.g., STM32 with 32 KB or 64 KB flash), compile-time preprocessor flags allow dead-stripping standard library `libm` math functions:
 
-* **`-DWICKED_POSTFIX_SLIM`**: Disables both non-core exponential/power math (`Pow`, `Exp`, `Ln`) and extended trigonometry (`Tan`, `Asin`, `Acos`), saving ~1.6 KB to 2.2 KB of flash `.text`.
-* **`-DWICKED_POSTFIX_NO_EXP_MATH`**: Disables `Pow`, `Exp`, `Ln` (eliminates `powf`, `expf`, and `logf`, saving ~1.2 KB to 1.6 KB flash).
-* **`-DWICKED_POSTFIX_NO_EXTENDED_TRIG`**: Disables `Tan`, `Asin`, `Acos` (eliminates `asinf`, `acosf`, and `tanf`, saving ~400 B to 600 B flash).
+* **`-DWICKED_POSTFIX_SLIM`**: Disables both non-core exponential/power math (`Pow`, `Exp`, `Ln`) and extended trigonometry (`Tan`, `Asin`, `Acos`).
+* **`-DWICKED_POSTFIX_NO_EXP_MATH`**: Disables `Pow`, `Exp`, `Ln` (eliminates `powf`, `expf`, and `logf`).
+* **`-DWICKED_POSTFIX_NO_EXTENDED_TRIG`**: Disables `Tan`, `Asin`, `Acos` (eliminates `asinf`, `acosf`, and `tanf`).
 
 When disabled, programs attempting to evaluate these opcodes are rejected during validation with `WickedEvalStatus_UndefinedOperation`.
+
+### Flash Memory Footprint (Reading & Evaluation Suite)
+
+The table below reports measured flash memory consumption compiled with `-Os` for the execution and reading suite (`WickedPostfixValidate`, `WickedPostfixEvaluate`, `WickedPostfixRead`, and `WickedPostfixOpToString`), excluding `WickedPostfixWriter`.
+
+* **Library-Only Flash**: Code and constant rodata generated directly by `WickedPostfix` functions in `WickedPostfix.cc`.
+* **Transitive Flash**: Net flash delta added to a linked firmware binary with linker dead-stripping (`-Wl,--gc-sections`), capturing the library code plus all transitive standard library (`libm` / Newlib) dependencies.
+
+| Target Architecture | Profile | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Flash Savings vs. Full |
+| :--- | :--- | :---: | :---: | :---: |
+| **STM32G4** (Cortex-M4F) | **Full** | **3,369 B** (~3.3 KB) | **13,868 B** (~13.5 KB) | — |
+| **STM32G4** (Cortex-M4F) | **Slim** (`-DWICKED_POSTFIX_SLIM`) | **3,305 B** (~3.2 KB) | **8,764 B** (~8.6 KB) | **5,104 B (~5.0 KB)** |
+| **ESP32-S3** (Xtensa LX7) | **Full** | **4,519 B** (~4.4 KB) | **15,440 B** (~15.1 KB) | — |
+| **ESP32-S3** (Xtensa LX7) | **Slim** (`-DWICKED_POSTFIX_SLIM`) | **4,396 B** (~4.3 KB) | **10,064 B** (~9.8 KB) | **5,376 B (~5.3 KB)** |
+
+#### Section Breakdown (STM32G4, Thumb-2)
+* **Bytecode Validation (`WickedPostfixValidate`)**: ~622 B `.text`
+* **Bytecode Evaluation (`WickedPostfixEvaluate`)**: ~2,124 B (Slim) / ~2,188 B (Full) `.text`
+* **Reader & Utilities (`WickedPostfixRead`, `copy_n`)**: ~58 B `.text`
+* **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~24 B `.text` + ~477 B `.rodata`
+
+#### Benchmark Compilation Flags
+* **STM32G4** (GNU Tools for STM32 14.3.1 / `arm-none-eabi-g++`):
+  `-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -std=c++20 -Os -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections --specs=nano.specs --specs=nosys.specs -Wl,--gc-sections -lm`
+* **ESP32-S3** (Espressif Xtensa GCC 14.2.0 / `xtensa-esp32s3-elf-g++`):
+  `-mlongcalls -std=c++20 -Os -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections --specs=nosys.specs -Wl,--gc-sections -lm`
+
 
