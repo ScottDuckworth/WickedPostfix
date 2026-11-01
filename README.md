@@ -109,9 +109,9 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 
 Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated functions (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`), evaluating only the required function and completely dead-stripping Newlib's ~3.1 KB Payne-Hanek range reduction subsystem:
 
-| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Full | Transitive Savings vs. Slim |
-| :--- | :---: | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,305 B** (~3.2 KB) | **7,080 B** (~6.9 KB) | **6,788 B (~6.6 KB)** | **1,684 B (~1.6 KB)** |
+| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Slim |
+| :--- | :---: | :---: | :---: |
+| **STM32G4** (Cortex-M4F) | **3,305 B** (~3.2 KB) | **7,080 B** (~6.9 KB) | **1,684 B (~1.6 KB)** |
 
 #### Section Breakdown (STM32G4, Thumb-2)
 * **Bytecode Validation (`WickedPostfixValidate`)**: ~622 B `.text`
