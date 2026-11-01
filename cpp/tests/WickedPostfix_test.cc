@@ -412,6 +412,106 @@ TEST(EvalTest, MoveIntUnderflow) {
   EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_IllegalOperation);
 }
 
+TEST(EvalTest, CopyBaseScalar) {
+  WickedPostfixWriter writer;
+  writer.CopyBase(0, 1);
+  auto buffer = writer.Write();
+
+  TestEval eval(5, {10, 20, 30});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 4), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_THAT(eval.stack(), ElementsAre(10, 20, 30, 10));
+}
+
+TEST(EvalTest, CopyBaseVector) {
+  WickedPostfixWriter writer;
+  writer.CopyBase(1, 2);
+  auto buffer = writer.Write();
+
+  TestEval eval(7, {10, 20, 30, 40});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 6), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_THAT(eval.stack(), ElementsAre(10, 20, 30, 40, 20, 30));
+}
+
+TEST(EvalTest, CopyBaseMaxSize) {
+  WickedPostfixWriter writer;
+  writer.CopyBase(0, 8);
+  auto buffer = writer.Write();
+
+  TestEval eval(16, {1, 2, 3, 4, 5, 6, 7, 8});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 16), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_THAT(eval.stack(), ElementsAre(1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8));
+}
+
+TEST(EvalTest, CopyBaseStackUnderflow) {
+  WickedPostfixWriter writer;
+  writer.CopyBase(2, 2);
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {10, 20, 30});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_StackUnderflow);
+}
+
+TEST(EvalTest, CopyBaseIntUnderflow) {
+  WickedPostfixWriter writer;
+  writer.EmitOp(WickedPostfixOp_CopyBase);
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {10, 20});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_IllegalOperation);
+}
+
+TEST(EvalTest, Slide) {
+  WickedPostfixWriter writer;
+  writer.Slide(2, 3);
+  auto buffer = writer.Write();
+
+  TestEval eval(5, {10, 20, 30, 40, 50});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 2), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_THAT(eval.stack(), ElementsAre(40, 50));
+}
+
+TEST(EvalTest, SlideScalar) {
+  WickedPostfixWriter writer;
+  writer.Slide(1, 1);
+  auto buffer = writer.Write();
+
+  TestEval eval(2, {10, 20});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_THAT(eval.stack(), ElementsAre(20));
+}
+
+TEST(EvalTest, SlideUnderflow) {
+  WickedPostfixWriter writer;
+  writer.Slide(2, 2);
+  auto buffer = writer.Write();
+
+  TestEval eval(3, {10, 20, 30});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_StackUnderflow);
+}
+
+TEST(EvalTest, SlideIntUnderflow) {
+  WickedPostfixWriter writer;
+  writer.EmitOp(WickedPostfixOp_Slide);
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {10, 20});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_IllegalOperation);
+}
+
 TEST(EvalTest, Add) {
   WickedPostfixWriter writer;
   writer.Add();

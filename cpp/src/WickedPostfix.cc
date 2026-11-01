@@ -25,15 +25,17 @@ extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
   switch (op) {
     case WickedPostfixOp_Undefined: return "Undefined";
     case WickedPostfixOp_Push:      return "Push";
-    case WickedPostfixOp_Drop:      return "Drop";
     case WickedPostfixOp_Dup:       return "Dup";
-    case WickedPostfixOp_Swap:      return "Swap";
     case WickedPostfixOp_Over:      return "Over";
     case WickedPostfixOp_Tuck:      return "Tuck";
+    case WickedPostfixOp_Drop:      return "Drop";
     case WickedPostfixOp_Nip:       return "Nip";
+    case WickedPostfixOp_Swap:      return "Swap";
     case WickedPostfixOp_Rot:       return "Rot";
-    case WickedPostfixOp_Copy:      return "Copy";
     case WickedPostfixOp_Move:      return "Move";
+    case WickedPostfixOp_Copy:      return "Copy";
+    case WickedPostfixOp_CopyBase:  return "CopyBase";
+    case WickedPostfixOp_Slide:     return "Slide";
     case WickedPostfixOp_Add:       return "Add";
     case WickedPostfixOp_Sub:       return "Sub";
     case WickedPostfixOp_Mul:       return "Mul";
@@ -193,12 +195,33 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t Copy(ValidationContext& ctx) {
   return WickedEvalStatus_Ok;
 }
 
+WICKED_ALWAYS_INLINE WickedEvalStatus_t CopyBase(ValidationContext& ctx) {
+  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  uint8_t arg = ctx.fetch_byte();
+  uint8_t index = arg & 0x1F;
+  uint8_t size = (arg >> 5) + 1;
+  if (ctx.stack_depth < int32_t(index) + size) return WickedEvalStatus_StackUnderflow;
+  ctx.stack_depth += size;
+  ctx.update_max(ctx.stack_depth);
+  return WickedEvalStatus_Ok;
+}
+
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Move(ValidationContext& ctx) {
   if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
   uint8_t arg = ctx.fetch_byte();
   uint8_t offset = arg & 0x1F;
   uint8_t size = (arg >> 5) + 1;
   if (ctx.stack_depth < int32_t(offset) + size) return WickedEvalStatus_StackUnderflow;
+  return WickedEvalStatus_Ok;
+}
+
+WICKED_ALWAYS_INLINE WickedEvalStatus_t Slide(ValidationContext& ctx) {
+  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  uint8_t arg = ctx.fetch_byte();
+  uint8_t keep = (arg & 0x0F) + 1;
+  uint8_t drop = (arg >> 4) + 1;
+  if (ctx.stack_depth < int32_t(keep) + drop) return WickedEvalStatus_StackUnderflow;
+  ctx.stack_depth -= drop;
   return WickedEvalStatus_Ok;
 }
 
@@ -333,15 +356,17 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, ui
 
     switch (op) {
       case WickedPostfixOp_Push:      status = validate::Push(ctx); break;
-      case WickedPostfixOp_Drop:      status = validate::Drop(ctx); break;
       case WickedPostfixOp_Dup:       status = validate::Dup(ctx); break;
-      case WickedPostfixOp_Swap:      status = validate::Swap(ctx); break;
       case WickedPostfixOp_Over:      status = validate::Over(ctx); break;
       case WickedPostfixOp_Tuck:      status = validate::Tuck(ctx); break;
+      case WickedPostfixOp_Drop:      status = validate::Drop(ctx); break;
       case WickedPostfixOp_Nip:       status = validate::Nip(ctx); break;
+      case WickedPostfixOp_Swap:      status = validate::Swap(ctx); break;
       case WickedPostfixOp_Rot:       status = validate::Rot(ctx); break;
-      case WickedPostfixOp_Copy:      status = validate::Copy(ctx); break;
       case WickedPostfixOp_Move:      status = validate::Move(ctx); break;
+      case WickedPostfixOp_Copy:      status = validate::Copy(ctx); break;
+      case WickedPostfixOp_CopyBase:  status = validate::CopyBase(ctx); break;
+      case WickedPostfixOp_Slide:     status = validate::Slide(ctx); break;
       case WickedPostfixOp_Add:
       case WickedPostfixOp_Sub:
       case WickedPostfixOp_Mul:
@@ -403,6 +428,7 @@ namespace {
 struct EvalContext {
   const uint8_t* pc;
   float* sp;
+  float* const base;
 
   WICKED_ALWAYS_INLINE uint8_t fetch_byte() {
     return *pc++;
@@ -513,6 +539,13 @@ WICKED_ALWAYS_INLINE void Rot(EvalContext& ctx) {
   ctx.sp[-1] = b;
 }
 
+WICKED_ALWAYS_INLINE void Move(EvalContext& ctx) {
+  uint8_t arg = ctx.fetch_byte();
+  uint8_t offset = arg & 0x1F;
+  uint8_t size = (arg >> 5) + 1;
+  std::rotate(ctx.sp - offset - size, ctx.sp - offset, ctx.sp);
+}
+
 WICKED_ALWAYS_INLINE void Copy(EvalContext& ctx) {
   uint8_t arg = ctx.fetch_byte();
   uint8_t offset = arg & 0x1F;
@@ -521,11 +554,20 @@ WICKED_ALWAYS_INLINE void Copy(EvalContext& ctx) {
   ctx.sp += size;
 }
 
-WICKED_ALWAYS_INLINE void Move(EvalContext& ctx) {
+WICKED_ALWAYS_INLINE void CopyBase(EvalContext& ctx) {
   uint8_t arg = ctx.fetch_byte();
-  uint8_t offset = arg & 0x1F;
+  uint8_t index = arg & 0x1F;
   uint8_t size = (arg >> 5) + 1;
-  std::rotate(ctx.sp - offset - size, ctx.sp - offset, ctx.sp);
+  std::copy_n(ctx.base + index, size, ctx.sp);
+  ctx.sp += size;
+}
+
+WICKED_ALWAYS_INLINE void Slide(EvalContext& ctx) {
+  uint8_t arg = ctx.fetch_byte();
+  uint8_t keep = (arg & 0x0F) + 1;
+  uint8_t drop = (arg >> 4) + 1;
+  std::memmove(ctx.sp - keep - drop, ctx.sp - keep, keep * sizeof(float));
+  ctx.sp -= drop;
 }
 
 WICKED_ALWAYS_INLINE void Add(EvalContext& ctx) {
@@ -836,6 +878,7 @@ extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_si
   EvalContext ctx{
     .pc = prog_data,
     .sp = stack_data + initial_stack_size,
+    .base = stack_data,
   };
   const uint8_t* const pc_end = prog_data + prog_size;
 
@@ -843,15 +886,17 @@ extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_si
     const uint8_t op = ctx.fetch_byte();
     switch (op) {
       case WickedPostfixOp_Push:      ops::Push(ctx); break;
-      case WickedPostfixOp_Drop:      ops::Drop(ctx); break;
       case WickedPostfixOp_Dup:       ops::Dup(ctx); break;
-      case WickedPostfixOp_Swap:      ops::Swap(ctx); break;
       case WickedPostfixOp_Over:      ops::Over(ctx); break;
       case WickedPostfixOp_Tuck:      ops::Tuck(ctx); break;
+      case WickedPostfixOp_Drop:      ops::Drop(ctx); break;
       case WickedPostfixOp_Nip:       ops::Nip(ctx); break;
+      case WickedPostfixOp_Swap:      ops::Swap(ctx); break;
       case WickedPostfixOp_Rot:       ops::Rot(ctx); break;
-      case WickedPostfixOp_Copy:      ops::Copy(ctx); break;
       case WickedPostfixOp_Move:      ops::Move(ctx); break;
+      case WickedPostfixOp_Copy:      ops::Copy(ctx); break;
+      case WickedPostfixOp_CopyBase:  ops::CopyBase(ctx); break;
+      case WickedPostfixOp_Slide:     ops::Slide(ctx); break;
       case WickedPostfixOp_Add:       ops::Add(ctx); break;
       case WickedPostfixOp_Sub:       ops::Sub(ctx); break;
       case WickedPostfixOp_Mul:       ops::Mul(ctx); break;

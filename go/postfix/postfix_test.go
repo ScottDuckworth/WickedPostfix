@@ -269,6 +269,62 @@ func TestEvalPostfixExpression(t *testing.T) {
 			wantErr: postfix.ErrIllegalOperation,
 		},
 		{
+			name:      "copybase scalar",
+			expr:      postfix.MakeBuilder().CopyBase(0, 1).Build(),
+			stack:     []float64{10, 20, 30},
+			wantStack: []float64{10, 20, 30, 10},
+		},
+		{
+			name:      "copybase vector",
+			expr:      postfix.MakeBuilder().CopyBase(1, 2).Build(),
+			stack:     []float64{10, 20, 30, 40},
+			wantStack: []float64{10, 20, 30, 40, 20, 30},
+		},
+		{
+			name:      "copybase max size",
+			expr:      postfix.MakeBuilder().CopyBase(0, 8).Build(),
+			stack:     []float64{1, 2, 3, 4, 5, 6, 7, 8},
+			wantStack: []float64{1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8},
+		},
+		{
+			name:    "copybase stack underflow",
+			expr:    postfix.MakeBuilder().CopyBase(2, 2).Build(),
+			stack:   []float64{10, 20, 30},
+			wantErr: postfix.ErrStackUnderflow,
+		},
+		{
+			name: "copybase int literals underflow",
+			expr: &postfix.Expression{
+				Prog: []uint8{uint8(postfix.Operation_CopyBase)},
+			},
+			wantErr: postfix.ErrIllegalOperation,
+		},
+		{
+			name:      "slide",
+			expr:      postfix.MakeBuilder().Slide(2, 3).Build(),
+			stack:     []float64{10, 20, 30, 40, 50},
+			wantStack: []float64{40, 50},
+		},
+		{
+			name:      "slide scalar",
+			expr:      postfix.MakeBuilder().Slide(1, 1).Build(),
+			stack:     []float64{10, 20},
+			wantStack: []float64{20},
+		},
+		{
+			name:    "slide underflow",
+			expr:    postfix.MakeBuilder().Slide(2, 2).Build(),
+			stack:   []float64{10, 20, 30},
+			wantErr: postfix.ErrStackUnderflow,
+		},
+		{
+			name: "slide int literals underflow",
+			expr: &postfix.Expression{
+				Prog: []uint8{uint8(postfix.Operation_Slide)},
+			},
+			wantErr: postfix.ErrIllegalOperation,
+		},
+		{
 			name:      "add",
 			expr:      postfix.MakeBuilder().Add().Build(),
 			stack:     []float64{0, 1, 2},
@@ -932,11 +988,17 @@ func TestOperationString(t *testing.T) {
 	if got := postfix.Operation_Push.String(); got != "Push" {
 		t.Errorf("got %q, want %q", got, "Push")
 	}
+	if got := postfix.Operation_Move.String(); got != "Move" {
+		t.Errorf("got %q, want %q", got, "Move")
+	}
 	if got := postfix.Operation_Copy.String(); got != "Copy" {
 		t.Errorf("got %q, want %q", got, "Copy")
 	}
-	if got := postfix.Operation_Move.String(); got != "Move" {
-		t.Errorf("got %q, want %q", got, "Move")
+	if got := postfix.Operation_CopyBase.String(); got != "CopyBase" {
+		t.Errorf("got %q, want %q", got, "CopyBase")
+	}
+	if got := postfix.Operation_Slide.String(); got != "Slide" {
+		t.Errorf("got %q, want %q", got, "Slide")
 	}
 	if got := postfix.Operation_PushVec.String(); got != "PushVec" {
 		t.Errorf("got %q, want %q", got, "PushVec")
@@ -953,15 +1015,15 @@ func TestOperationString(t *testing.T) {
 }
 
 func TestOperationPredicates(t *testing.T) {
-	// Binary scalar: 11..16 (Add..Atan2)
+	// Binary scalar: 13..18 (Add..Atan2)
 	if !postfix.Operation_Add.IsBinaryScalar() || !postfix.Operation_Pow.IsBinaryScalar() || !postfix.Operation_Atan2.IsBinaryScalar() {
 		t.Errorf("expected Add, Pow, Atan2 to be binary scalar")
 	}
-	if postfix.Operation_Move.IsBinaryScalar() || postfix.Operation_Neg.IsBinaryScalar() {
-		t.Errorf("expected Move, Neg to not be binary scalar")
+	if postfix.Operation_Slide.IsBinaryScalar() || postfix.Operation_Neg.IsBinaryScalar() {
+		t.Errorf("expected Slide, Neg to not be binary scalar")
 	}
 
-	// Unary scalar: 17..27 (Neg..Acos)
+	// Unary scalar: 19..29 (Neg..Acos)
 	if !postfix.Operation_Neg.IsUnaryScalar() || !postfix.Operation_Sqrt.IsUnaryScalar() || !postfix.Operation_Acos.IsUnaryScalar() {
 		t.Errorf("expected Neg, Sqrt, Acos to be unary scalar")
 	}
@@ -969,15 +1031,15 @@ func TestOperationPredicates(t *testing.T) {
 		t.Errorf("expected Atan2, Ipow to not be unary scalar")
 	}
 
-	// Scalar: 11..29 (Add..MulAdd)
+	// Scalar: 13..31 (Add..MulAdd)
 	if !postfix.Operation_Add.IsScalar() || !postfix.Operation_Ipow.IsScalar() || !postfix.Operation_MulAdd.IsScalar() {
 		t.Errorf("expected Add, Ipow, MulAdd to be scalar")
 	}
-	if postfix.Operation_Copy.IsScalar() || postfix.Operation_AddVec.IsScalar() {
-		t.Errorf("expected Copy, AddVec to not be scalar")
+	if postfix.Operation_Slide.IsScalar() || postfix.Operation_AddVec.IsScalar() {
+		t.Errorf("expected Slide, AddVec to not be scalar")
 	}
 
-	// Binary vector: 31..34 (AddVec..DivVec)
+	// Binary vector: 33..36 (AddVec..DivVec)
 	if !postfix.Operation_AddVec.IsBinaryVec() || !postfix.Operation_DivVec.IsBinaryVec() {
 		t.Errorf("expected AddVec, DivVec to be binary vec")
 	}
@@ -985,7 +1047,7 @@ func TestOperationPredicates(t *testing.T) {
 		t.Errorf("expected MulAdd, NegVec to not be binary vec")
 	}
 
-	// Unary vector: 35..36 (NegVec..InvVec)
+	// Unary vector: 37..38 (NegVec..InvVec)
 	if !postfix.Operation_NegVec.IsUnaryVec() || !postfix.Operation_InvVec.IsUnaryVec() {
 		t.Errorf("expected NegVec, InvVec to be unary vec")
 	}
@@ -993,7 +1055,7 @@ func TestOperationPredicates(t *testing.T) {
 		t.Errorf("expected DivVec, NormSqVec to not be unary vec")
 	}
 
-	// Vector reduction: 37..38 (NormSqVec..SumVec)
+	// Vector reduction: 39..40 (NormSqVec..SumVec)
 	if !postfix.Operation_NormSqVec.IsVectorReduction() || !postfix.Operation_SumVec.IsVectorReduction() {
 		t.Errorf("expected NormSqVec, SumVec to be vector reduction")
 	}
@@ -1001,7 +1063,7 @@ func TestOperationPredicates(t *testing.T) {
 		t.Errorf("expected InvVec, MulAddVec to not be vector reduction")
 	}
 
-	// Vector: 30..41 (PushVec..LerpVec)
+	// Vector: 32..43 (PushVec..LerpVec)
 	if !postfix.Operation_PushVec.IsVector() || !postfix.Operation_AddVec.IsVector() || !postfix.Operation_LerpVec.IsVector() {
 		t.Errorf("expected PushVec, AddVec, LerpVec to be vector")
 	}
@@ -1009,7 +1071,7 @@ func TestOperationPredicates(t *testing.T) {
 		t.Errorf("expected MulAdd, MulMat to not be vector")
 	}
 
-	// Size operand: 30..41 (PushVec..LerpVec)
+	// Size operand: 32..43 (PushVec..LerpVec)
 	if !postfix.Operation_PushVec.HasSizeOperand() || !postfix.Operation_AddVec.HasSizeOperand() || !postfix.Operation_LerpVec.HasSizeOperand() {
 		t.Errorf("expected PushVec, AddVec, LerpVec to have size operand")
 	}

@@ -32,87 +32,89 @@ type Operation uint8
 const (
 	Operation_Undefined  Operation = 0
 	Operation_Push       Operation = 1
-	Operation_Drop       Operation = 2
-	Operation_Dup        Operation = 3
-	Operation_Swap       Operation = 4
-	Operation_Over       Operation = 5
-	Operation_Tuck       Operation = 6
-	Operation_Nip        Operation = 7
+	Operation_Dup        Operation = 2
+	Operation_Over       Operation = 3
+	Operation_Tuck       Operation = 4
+	Operation_Drop       Operation = 5
+	Operation_Nip        Operation = 6
+	Operation_Swap       Operation = 7
 	Operation_Rot        Operation = 8
-	Operation_Copy       Operation = 9
-	Operation_Move       Operation = 10
-	Operation_Add        Operation = 11
-	Operation_Sub        Operation = 12
-	Operation_Mul        Operation = 13
-	Operation_Div        Operation = 14
-	Operation_Pow        Operation = 15
-	Operation_Atan2      Operation = 16
-	Operation_Neg        Operation = 17
-	Operation_Abs        Operation = 18
-	Operation_Inv        Operation = 19
-	Operation_Sqrt       Operation = 20
-	Operation_Exp        Operation = 21
-	Operation_Ln         Operation = 22
-	Operation_Sin        Operation = 23
-	Operation_Cos        Operation = 24
-	Operation_Tan        Operation = 25
-	Operation_Asin       Operation = 26
-	Operation_Acos       Operation = 27
-	Operation_Ipow       Operation = 28
-	Operation_MulAdd     Operation = 29
-	Operation_PushVec    Operation = 30
-	Operation_AddVec     Operation = 31
-	Operation_SubVec     Operation = 32
-	Operation_MulVec     Operation = 33
-	Operation_DivVec     Operation = 34
-	Operation_NegVec     Operation = 35
-	Operation_InvVec     Operation = 36
-	Operation_NormSqVec  Operation = 37
-	Operation_SumVec     Operation = 38
-	Operation_MulAddVec  Operation = 39
-	Operation_ScaleVec   Operation = 40
-	Operation_LerpVec    Operation = 41
-	Operation_MulMat     Operation = 42
-	Operation_Poly       Operation = 43
-	Operation_CosSin     Operation = 44
+	Operation_Move       Operation = 9
+	Operation_Copy       Operation = 10
+	Operation_CopyBase   Operation = 11
+	Operation_Slide      Operation = 12
+	Operation_Add        Operation = 13
+	Operation_Sub        Operation = 14
+	Operation_Mul        Operation = 15
+	Operation_Div        Operation = 16
+	Operation_Pow        Operation = 17
+	Operation_Atan2      Operation = 18
+	Operation_Neg        Operation = 19
+	Operation_Abs        Operation = 20
+	Operation_Inv        Operation = 21
+	Operation_Sqrt       Operation = 22
+	Operation_Exp        Operation = 23
+	Operation_Ln         Operation = 24
+	Operation_Sin        Operation = 25
+	Operation_Cos        Operation = 26
+	Operation_Tan        Operation = 27
+	Operation_Asin       Operation = 28
+	Operation_Acos       Operation = 29
+	Operation_Ipow       Operation = 30
+	Operation_MulAdd     Operation = 31
+	Operation_PushVec    Operation = 32
+	Operation_AddVec     Operation = 33
+	Operation_SubVec     Operation = 34
+	Operation_MulVec     Operation = 35
+	Operation_DivVec     Operation = 36
+	Operation_NegVec     Operation = 37
+	Operation_InvVec     Operation = 38
+	Operation_NormSqVec  Operation = 39
+	Operation_SumVec     Operation = 40
+	Operation_MulAddVec  Operation = 41
+	Operation_ScaleVec   Operation = 42
+	Operation_LerpVec    Operation = 43
+	Operation_MulMat     Operation = 44
+	Operation_Poly       Operation = 45
+	Operation_CosSin     Operation = 46
 )
 
-// IsBinaryScalar reports whether op is a binary scalar operation (11..16).
+// IsBinaryScalar reports whether op is a binary scalar operation (13..18).
 func (op Operation) IsBinaryScalar() bool {
 	return op >= Operation_Add && op <= Operation_Atan2
 }
 
-// IsUnaryScalar reports whether op is a unary scalar operation (17..27).
+// IsUnaryScalar reports whether op is a unary scalar operation (19..29).
 func (op Operation) IsUnaryScalar() bool {
 	return op >= Operation_Neg && op <= Operation_Acos
 }
 
-// IsScalar reports whether op is any scalar operation (11..29).
+// IsScalar reports whether op is any scalar operation (13..31).
 func (op Operation) IsScalar() bool {
 	return op >= Operation_Add && op <= Operation_MulAdd
 }
 
-// IsBinaryVec reports whether op is a binary vector operation (31..34).
+// IsBinaryVec reports whether op is a binary vector operation (33..36).
 func (op Operation) IsBinaryVec() bool {
 	return op >= Operation_AddVec && op <= Operation_DivVec
 }
 
-// IsUnaryVec reports whether op is a unary vector operation (35..36).
+// IsUnaryVec reports whether op is a unary vector operation (37..38).
 func (op Operation) IsUnaryVec() bool {
 	return op >= Operation_NegVec && op <= Operation_InvVec
 }
 
-// IsVectorReduction reports whether op is a vector reduction operation (37..38).
+// IsVectorReduction reports whether op is a vector reduction operation (39..40).
 func (op Operation) IsVectorReduction() bool {
 	return op >= Operation_NormSqVec && op <= Operation_SumVec
 }
 
-// IsVector reports whether op is any vector operation with a size operand (30..41).
+// IsVector reports whether op is any vector operation with a size operand (32..43).
 func (op Operation) IsVector() bool {
 	return op >= Operation_PushVec && op <= Operation_LerpVec
 }
 
-// HasSizeOperand reports whether op has a 1-byte size operand (30..41).
+// HasSizeOperand reports whether op has a 1-byte size operand (32..43).
 func (op Operation) HasSizeOperand() bool {
 	return op >= Operation_PushVec && op <= Operation_LerpVec
 }
@@ -134,24 +136,28 @@ func (op Operation) String() string {
 		return "Undefined"
 	case Operation_Push:
 		return "Push"
-	case Operation_Drop:
-		return "Drop"
 	case Operation_Dup:
 		return "Dup"
-	case Operation_Swap:
-		return "Swap"
 	case Operation_Over:
 		return "Over"
 	case Operation_Tuck:
 		return "Tuck"
+	case Operation_Drop:
+		return "Drop"
 	case Operation_Nip:
 		return "Nip"
+	case Operation_Swap:
+		return "Swap"
 	case Operation_Rot:
 		return "Rot"
-	case Operation_Copy:
-		return "Copy"
 	case Operation_Move:
 		return "Move"
+	case Operation_Copy:
+		return "Copy"
+	case Operation_CopyBase:
+		return "CopyBase"
+	case Operation_Slide:
+		return "Slide"
 	case Operation_Add:
 		return "Add"
 	case Operation_Sub:
@@ -363,6 +369,30 @@ func (b *Builder) Copy(offset, size int) *Builder {
 		panic(fmt.Sprintf("Copy size (%d) must be in range [1, 8]", size))
 	}
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Copy), uint8((offset&0x1F)|((size-1)<<5)))
+	return b
+}
+
+// CopyBase duplicates a subvector starting from index at the bottom of the stack to the top (... v ... -> ... v ... v).
+func (b *Builder) CopyBase(index, size int) *Builder {
+	if index < 0 || index > 31 {
+		panic(fmt.Sprintf("CopyBase index (%d) must be in range [0, 31]", index))
+	}
+	if size < 1 || size > 8 {
+		panic(fmt.Sprintf("CopyBase size (%d) must be in range [1, 8]", size))
+	}
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_CopyBase), uint8((index&0x1F)|((size-1)<<5)))
+	return b
+}
+
+// Slide keeps the top keep elements on the stack and drops drop elements directly beneath them.
+func (b *Builder) Slide(keep, drop int) *Builder {
+	if keep < 1 || keep > 16 {
+		panic(fmt.Sprintf("Slide keep (%d) must be in range [1, 16]", keep))
+	}
+	if drop < 1 || drop > 16 {
+		panic(fmt.Sprintf("Slide drop (%d) must be in range [1, 16]", drop))
+	}
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Slide), uint8(((keep-1)&0x0F)|(((drop-1)&0x0F)<<4)))
 	return b
 }
 
@@ -768,6 +798,16 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 			if stackLen < 3 {
 				return 0, 0, nil, ErrStackUnderflow
 			}
+		case Operation_Move:
+			if avail() < 1 {
+				return 0, 0, nil, ErrIllegalOperation
+			}
+			arg := fetchByte()
+			offset := arg & 0x1F
+			size := (arg >> 5) + 1
+			if stackLen < offset+size {
+				return 0, 0, nil, ErrStackUnderflow
+			}
 		case Operation_Copy:
 			if avail() < 1 {
 				return 0, 0, nil, ErrIllegalOperation
@@ -780,16 +820,29 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 			}
 			stackLen += size
 			updateMax(stackLen)
-		case Operation_Move:
+		case Operation_CopyBase:
 			if avail() < 1 {
 				return 0, 0, nil, ErrIllegalOperation
 			}
 			arg := fetchByte()
-			offset := arg & 0x1F
-			size := (arg >> 5) + 1
-			if stackLen < offset+size {
+			index := int(arg & 0x1F)
+			size := int((arg >> 5) + 1)
+			if stackLen < index+size {
 				return 0, 0, nil, ErrStackUnderflow
 			}
+			stackLen += size
+			updateMax(stackLen)
+		case Operation_Slide:
+			if avail() < 1 {
+				return 0, 0, nil, ErrIllegalOperation
+			}
+			arg := fetchByte()
+			keep := int(arg&0x0F) + 1
+			drop := int(arg>>4) + 1
+			if stackLen < keep+drop {
+				return 0, 0, nil, ErrStackUnderflow
+			}
+			stackLen -= drop
 		case Operation_Add, Operation_Sub, Operation_Mul, Operation_Div, Operation_Pow, Operation_Atan2:
 			if stackLen < 2 {
 				return 0, 0, nil, ErrStackUnderflow
@@ -1012,12 +1065,6 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 			stack[i-2] = stack[i-1]
 			stack[i-1] = stack[i]
 			stack[i] = b
-		case Operation_Copy:
-			arg := fetchByte()
-			offset := arg & 0x1F
-			size := (arg >> 5) + 1
-			start := len(stack) - offset - size
-			stack = append(stack, stack[start:start+size]...)
 		case Operation_Move:
 			arg := fetchByte()
 			offset := arg & 0x1F
@@ -1030,6 +1077,23 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 				copy(stack[start:], stack[mid:])
 				copy(stack[len(stack)-size:], tmp[:size])
 			}
+		case Operation_Copy:
+			arg := fetchByte()
+			offset := arg & 0x1F
+			size := (arg >> 5) + 1
+			start := len(stack) - offset - size
+			stack = append(stack, stack[start:start+size]...)
+		case Operation_CopyBase:
+			arg := fetchByte()
+			index := int(arg & 0x1F)
+			size := int((arg >> 5) + 1)
+			stack = append(stack, stack[index:index+size]...)
+		case Operation_Slide:
+			arg := fetchByte()
+			keep := int(arg&0x0F) + 1
+			drop := int(arg>>4) + 1
+			copy(stack[len(stack)-keep-drop:], stack[len(stack)-keep:])
+			stack = stack[:len(stack)-drop]
 		case Operation_Add:
 			rhs := pop()
 			lhs := pop()

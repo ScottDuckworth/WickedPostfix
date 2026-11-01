@@ -37,87 +37,89 @@ _Static_assert(_Alignof(WickedPostfixHeader_t) == 1, "WickedPostfixHeader_t must
 typedef enum WickedPostfixOp {
   WickedPostfixOp_Undefined = 0,
   WickedPostfixOp_Push      = 1,
-  WickedPostfixOp_Drop      = 2,
-  WickedPostfixOp_Dup       = 3,
-  WickedPostfixOp_Swap      = 4,
-  WickedPostfixOp_Over      = 5,
-  WickedPostfixOp_Tuck      = 6,
-  WickedPostfixOp_Nip       = 7,
+  WickedPostfixOp_Dup       = 2,
+  WickedPostfixOp_Over      = 3,
+  WickedPostfixOp_Tuck      = 4,
+  WickedPostfixOp_Drop      = 5,
+  WickedPostfixOp_Nip       = 6,
+  WickedPostfixOp_Swap      = 7,
   WickedPostfixOp_Rot       = 8,
-  WickedPostfixOp_Copy      = 9,
-  WickedPostfixOp_Move      = 10,
-  WickedPostfixOp_Add       = 11,
-  WickedPostfixOp_Sub       = 12,
-  WickedPostfixOp_Mul       = 13,
-  WickedPostfixOp_Div       = 14,
-  WickedPostfixOp_Pow       = 15,
-  WickedPostfixOp_Atan2     = 16,
-  WickedPostfixOp_Neg       = 17,
-  WickedPostfixOp_Abs       = 18,
-  WickedPostfixOp_Inv       = 19,
-  WickedPostfixOp_Sqrt      = 20,
-  WickedPostfixOp_Exp       = 21,
-  WickedPostfixOp_Ln        = 22,
-  WickedPostfixOp_Sin       = 23,
-  WickedPostfixOp_Cos       = 24,
-  WickedPostfixOp_Tan       = 25,
-  WickedPostfixOp_Asin      = 26,
-  WickedPostfixOp_Acos      = 27,
-  WickedPostfixOp_Ipow      = 28,
-  WickedPostfixOp_MulAdd    = 29,
-  WickedPostfixOp_PushVec   = 30,
-  WickedPostfixOp_AddVec    = 31,
-  WickedPostfixOp_SubVec    = 32,
-  WickedPostfixOp_MulVec    = 33,
-  WickedPostfixOp_DivVec    = 34,
-  WickedPostfixOp_NegVec    = 35,
-  WickedPostfixOp_InvVec    = 36,
-  WickedPostfixOp_NormSqVec = 37,
-  WickedPostfixOp_SumVec    = 38,
-  WickedPostfixOp_MulAddVec = 39,
-  WickedPostfixOp_ScaleVec  = 40,
-  WickedPostfixOp_LerpVec   = 41,
-  WickedPostfixOp_MulMat    = 42,
-  WickedPostfixOp_Poly      = 43,
-  WickedPostfixOp_CosSin    = 44,
+  WickedPostfixOp_Move      = 9,
+  WickedPostfixOp_Copy      = 10,
+  WickedPostfixOp_CopyBase  = 11,
+  WickedPostfixOp_Slide     = 12,
+  WickedPostfixOp_Add       = 13,
+  WickedPostfixOp_Sub       = 14,
+  WickedPostfixOp_Mul       = 15,
+  WickedPostfixOp_Div       = 16,
+  WickedPostfixOp_Pow       = 17,
+  WickedPostfixOp_Atan2     = 18,
+  WickedPostfixOp_Neg       = 19,
+  WickedPostfixOp_Abs       = 20,
+  WickedPostfixOp_Inv       = 21,
+  WickedPostfixOp_Sqrt      = 22,
+  WickedPostfixOp_Exp       = 23,
+  WickedPostfixOp_Ln        = 24,
+  WickedPostfixOp_Sin       = 25,
+  WickedPostfixOp_Cos       = 26,
+  WickedPostfixOp_Tan       = 27,
+  WickedPostfixOp_Asin      = 28,
+  WickedPostfixOp_Acos      = 29,
+  WickedPostfixOp_Ipow      = 30,
+  WickedPostfixOp_MulAdd    = 31,
+  WickedPostfixOp_PushVec   = 32,
+  WickedPostfixOp_AddVec    = 33,
+  WickedPostfixOp_SubVec    = 34,
+  WickedPostfixOp_MulVec    = 35,
+  WickedPostfixOp_DivVec    = 36,
+  WickedPostfixOp_NegVec    = 37,
+  WickedPostfixOp_InvVec    = 38,
+  WickedPostfixOp_NormSqVec = 39,
+  WickedPostfixOp_SumVec    = 40,
+  WickedPostfixOp_MulAddVec = 41,
+  WickedPostfixOp_ScaleVec  = 42,
+  WickedPostfixOp_LerpVec   = 43,
+  WickedPostfixOp_MulMat    = 44,
+  WickedPostfixOp_Poly      = 45,
+  WickedPostfixOp_CosSin    = 46,
 } WickedPostfixOp_t;
 
-// Returns true if op is a binary scalar operation (11..16).
+// Returns true if op is a binary scalar operation (13..18).
 static inline bool WickedPostfixOpIsBinaryScalar(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_Add && op <= WickedPostfixOp_Atan2;
 }
 
-// Returns true if op is a unary scalar operation (17..27).
+// Returns true if op is a unary scalar operation (19..29).
 static inline bool WickedPostfixOpIsUnaryScalar(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_Neg && op <= WickedPostfixOp_Acos;
 }
 
-// Returns true if op is any scalar operation (11..29).
+// Returns true if op is any scalar operation (13..31).
 static inline bool WickedPostfixOpIsScalar(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_Add && op <= WickedPostfixOp_MulAdd;
 }
 
-// Returns true if op is a binary vector operation (31..34).
+// Returns true if op is a binary vector operation (33..36).
 static inline bool WickedPostfixOpIsBinaryVec(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_AddVec && op <= WickedPostfixOp_DivVec;
 }
 
-// Returns true if op is a unary vector operation (35..36).
+// Returns true if op is a unary vector operation (37..38).
 static inline bool WickedPostfixOpIsUnaryVec(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_NegVec && op <= WickedPostfixOp_InvVec;
 }
 
-// Returns true if op is a vector reduction operation (37..38).
+// Returns true if op is a vector reduction operation (39..40).
 static inline bool WickedPostfixOpIsVectorReduction(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_NormSqVec && op <= WickedPostfixOp_SumVec;
 }
 
-// Returns true if op is a vector operation (30..41).
+// Returns true if op is a vector operation (32..43).
 static inline bool WickedPostfixOpIsVector(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_PushVec && op <= WickedPostfixOp_LerpVec;
 }
 
-// Returns true if op takes a 1-byte size operand (30..41).
+// Returns true if op takes a 1-byte size operand (32..43).
 static inline bool WickedPostfixOpHasSizeOperand(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_PushVec && op <= WickedPostfixOp_LerpVec;
 }
@@ -268,6 +270,22 @@ class WickedPostfixWriter {
     assert(size >= 1 && size <= 8);
     EmitOp(WickedPostfixOp_Move);
     EmitByte((offset & 0x1F) | ((size - 1) << 5));
+  }
+
+  // Copies a subvector from bottom index to the top (... v ... -> ... v ... v).
+  void CopyBase(uint8_t index, uint8_t size = 1) {
+    assert(index <= 31);
+    assert(size >= 1 && size <= 8);
+    EmitOp(WickedPostfixOp_CopyBase);
+    EmitByte((index & 0x1F) | ((size - 1) << 5));
+  }
+
+  // Keeps top `keep` elements and drops `drop` elements directly beneath them.
+  void Slide(uint8_t keep, uint8_t drop) {
+    assert(keep >= 1 && keep <= 16);
+    assert(drop >= 1 && drop <= 16);
+    EmitOp(WickedPostfixOp_Slide);
+    EmitByte(((keep - 1) & 0x0F) | (((drop - 1) & 0x0F) << 4));
   }
 
   // Pops two values and pushes their sum (a b -> a + b).
