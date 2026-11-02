@@ -153,7 +153,7 @@ def parse_objdump_sections(output):
                 pass
     return sections
 
-def run_benchmark_for_config(cfg, workdir, src_postfix, base_src, harn_src, verbose=False):
+def run_benchmark_for_config(cfg, workdir, src_postfix, src_math, base_src, harn_src, verbose=False):
     cxx = cfg["cxx"]
     size_bin = cfg["size"]
     cflags = cfg["cflags"]
@@ -175,15 +175,28 @@ def run_benchmark_for_config(cfg, workdir, src_postfix, base_src, harn_src, verb
         print(f"Error compiling object for {cfg['name']}:\n{res.stderr}", file=sys.stderr)
         return None
 
+    obj_math = os.path.join(workdir, f"math_{cfg['key']}.o")
+    cmd_math = [cxx] + cflags + ["-c", src_math, "-o", obj_math]
+    if verbose:
+        print("  [CMD]", " ".join(cmd_math))
+    res = subprocess.run(cmd_math, capture_output=True, text=True)
+    if res.returncode != 0:
+        print(f"Error compiling math object for {cfg['name']}:\n{res.stderr}", file=sys.stderr)
+        return None
+
     res_sz = subprocess.run([size_bin, obj_postfix], capture_output=True, text=True)
     t, d, b = parse_size_output(res_sz.stdout)
-    lib_flash = t + d
+    res_sz_m = subprocess.run([size_bin, obj_math], capture_output=True, text=True)
+    tm, dm, bm = parse_size_output(res_sz_m.stdout)
+    lib_flash = (t + d) + (tm + dm)
 
     objdump_bin = size_bin.replace("size" + BIN_EXT, "objdump" + BIN_EXT)
     sections = {}
     if os.path.exists(objdump_bin):
         res_od = subprocess.run([objdump_bin, "-h", obj_postfix], capture_output=True, text=True)
         sections = parse_objdump_sections(res_od.stdout)
+        res_od_m = subprocess.run([objdump_bin, "-h", obj_math], capture_output=True, text=True)
+        sections.update(parse_objdump_sections(res_od_m.stdout))
 
     base_elf = os.path.join(workdir, f"base_{cfg['key']}.elf")
     cmd_base = [cxx] + cflags + [base_src_path, "-o", base_elf] + ldflags
@@ -198,7 +211,7 @@ def run_benchmark_for_config(cfg, workdir, src_postfix, base_src, harn_src, verb
     base_flash = base_t + base_d
 
     harn_elf = os.path.join(workdir, f"harn_{cfg['key']}.elf")
-    cmd_harn = [cxx] + cflags + [harn_src_path, obj_postfix, "-o", harn_elf] + ldflags
+    cmd_harn = [cxx] + cflags + [harn_src_path, obj_postfix, obj_math, "-o", harn_elf] + ldflags
     if verbose:
         print("  [CMD]", " ".join(cmd_harn))
     res = subprocess.run(cmd_harn, capture_output=True, text=True)
@@ -288,9 +301,13 @@ def main():
 
     include_dir = os.path.join(protocol_root, "cpp", "include")
     src_postfix = os.path.join(protocol_root, "cpp", "src", "WickedPostfix.cc")
+    src_math = os.path.join(protocol_root, "cpp", "src", "WickedMath.cc")
 
     if not os.path.isfile(src_postfix):
         print(f"Error: WickedPostfix.cc not found at {src_postfix}", file=sys.stderr)
+        sys.exit(1)
+    if not os.path.isfile(src_math):
+        print(f"Error: WickedMath.cc not found at {src_math}", file=sys.stderr)
         sys.exit(1)
 
     arm_cxx, arm_size = discover_arm_toolchain(args.arm_cxx, args.arm_size)
@@ -423,7 +440,7 @@ def main():
 
         for cfg in configs:
             print(f"Compiling & linking {cfg['name']}...")
-            res = run_benchmark_for_config(cfg, td, src_postfix, base_src, harn_src, verbose=args.verbose)
+            res = run_benchmark_for_config(cfg, td, src_postfix, src_math, base_src, harn_src, verbose=args.verbose)
             results[cfg["key"]] = res
 
     # Print summary table
@@ -452,7 +469,7 @@ def main():
         print(f"  * WickedPostfixRead/copy_n: ~{read_sz} B")
         print(f"  * OpToString / Switch:      ~{str_sz} B")
 
-    # Math helper functions in WickedUtil.hh
+    # Math helper functions in WickedMath.h
     target_key = "stm32_cordic" if "stm32_cordic" in results else ("stm32_fast_exp" if "stm32_fast_exp" in results else None)
     if target_key:
         secs = results[target_key]["sections"]
@@ -460,7 +477,7 @@ def main():
         fast_exp_sz = sum(v for k, v in secs.items() if "wicked_fast_exp" in k)
         cordic_sincos_sz = sum(v for k, v in secs.items() if "wicked_cordic_sincos" in k)
         cordic_atan2_sz = sum(v for k, v in secs.items() if "wicked_cordic_atan2" in k)
-        print("\nHelper Math Functions (WickedUtil.hh, Thumb-2):")
+        print("\nHelper Math Functions (WickedMath.h, Thumb-2):")
         if fast_exp_sz:
             print(f"  * wicked_fast_expf:         ~{fast_exp_sz} B")
         if fast_log_sz:

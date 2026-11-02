@@ -1,5 +1,5 @@
 #include "WickedPostfix.h"
-#include "WickedUtil.hh"
+#include "WickedMath.h"
 
 #include <algorithm>
 #include <bit>

@@ -1,5 +1,5 @@
 #include "WickedPostfix.h"
-#include "../src/WickedUtil.hh"
+#include "WickedMath.h"
 
 #include <cmath>
 #include <span>

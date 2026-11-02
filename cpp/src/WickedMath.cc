@@ -1,4 +1,4 @@
-#pragma once
+#include "WickedMath.h"
 
 #include <cmath>
 #include <cstdint>
@@ -34,7 +34,7 @@
 
 // Hardware CORDIC coprocessor driver for STM32 (STM32G4, STM32H5, STM32U5, STM32H7R/S).
 // Computes sine and cosine in hardware with 0 bytes of lookup tables.
-static inline void wicked_cordic_sincosf(float t, float* s, float* c) {
+extern "C" void wicked_cordic_sincosf(float t, float* s, float* c) {
   // Normalize t in radians to [-1.0f, 1.0f) representing [-pi, pi]
   float turns = t * 0.15915494309189535f;  // t / (2 * pi)
   turns -= static_cast<int32_t>(turns);
@@ -56,19 +56,7 @@ static inline void wicked_cordic_sincosf(float t, float* s, float* c) {
   *s = static_cast<int32_t>(CORDIC->RDATA) * kQ31ToFloat;
 }
 
-static inline float wicked_cordic_sinf(float t) {
-  float s, c;
-  wicked_cordic_sincosf(t, &s, &c);
-  return s;
-}
-
-static inline float wicked_cordic_cosf(float t) {
-  float s, c;
-  wicked_cordic_sincosf(t, &s, &c);
-  return c;
-}
-
-static inline float wicked_cordic_atan2f(float y, float x) {
+extern "C" float wicked_cordic_atan2f(float y, float x) {
   float ax = std::abs(x);
   float ay = std::abs(y);
   float max_val = ax > ay ? ax : ay;
@@ -88,81 +76,11 @@ static inline float wicked_cordic_atan2f(float y, float x) {
   constexpr float kQ31ToPi = 3.14159265358979323846f / 2147483648.0f;
   return static_cast<int32_t>(CORDIC->RDATA) * kQ31ToPi;
 }
-
-#ifndef WICKED_CUSTOM_SIN
-#define WICKED_CUSTOM_SIN(t) wicked_cordic_sinf(t)
-#endif
-#ifndef WICKED_CUSTOM_COS
-#define WICKED_CUSTOM_COS(t) wicked_cordic_cosf(t)
-#endif
-#ifndef WICKED_CUSTOM_SINCOS
-#define WICKED_CUSTOM_SINCOS(t, s, c) wicked_cordic_sincosf((t), (s), (c))
-#endif
-#ifndef WICKED_CUSTOM_ATAN2
-#define WICKED_CUSTOM_ATAN2(y, x) wicked_cordic_atan2f((y), (x))
-#endif
-#elif defined(WICKED_USE_CMSIS_DSP)
-#include "arm_math.h"
-#ifndef WICKED_CUSTOM_SIN
-#define WICKED_CUSTOM_SIN(t) arm_sin_f32(t)
-#endif
-#ifndef WICKED_CUSTOM_COS
-#define WICKED_CUSTOM_COS(t) arm_cos_f32(t)
-#endif
-#ifndef WICKED_CUSTOM_SINCOS
-#define WICKED_CUSTOM_SINCOS(t, s, c) arm_sin_cos_f32((t), (s), (c))
-#endif
-#endif
-
-#ifndef WICKED_CUSTOM_SIN
-#define WICKED_CUSTOM_SIN(t) std::sin(t)
-#endif
-
-#ifndef WICKED_CUSTOM_COS
-#define WICKED_CUSTOM_COS(t) std::cos(t)
-#endif
-
-#ifndef WICKED_CUSTOM_SINCOS
-#if defined(__GNUC__) || defined(__clang__)
-#define WICKED_CUSTOM_SINCOS(t, s, c) __builtin_sincosf((t), (s), (c))
-#else
-#define WICKED_CUSTOM_SINCOS(t, s, c) \
-  do {                                \
-    *(s) = std::sin(t);               \
-    *(c) = std::cos(t);               \
-  } while (0)
-#endif
-#endif
-
-#ifndef WICKED_CUSTOM_ATAN2
-#define WICKED_CUSTOM_ATAN2(y, x) std::atan2((y), (x))
-#endif
-
-// Computes sine.
-static inline float wicked_sinf(float t) {
-  return WICKED_CUSTOM_SIN(t);
-}
-
-// Computes cosine.
-static inline float wicked_cosf(float t) {
-  return WICKED_CUSTOM_COS(t);
-}
-
-// Computes sine and cosine simultaneously.
-static inline void wicked_sincosf(float t, float* s, float* c) {
-  WICKED_CUSTOM_SINCOS(t, s, c);
-}
-
-// Computes 2-argument arctangent atan2(y, x).
-static inline float wicked_atan2f(float y, float x) {
-  return WICKED_CUSTOM_ATAN2(y, x);
-}
-
-// --- FAST EXPONENTIAL MATH IMPLEMENTATIONS ---
+#endif  // WICKED_USE_STM32_CORDIC
 
 // Tableless IEEE-754 bit-trick + Horner polynomial approximation of expf(x).
 // Precision: < 5e-6 relative error across the entire float range.
-static inline float wicked_fast_expf(float x) {
+extern "C" float wicked_fast_expf(float x) {
   if (std::isnan(x)) return x;
   if (x > 88.722839f) return std::numeric_limits<float>::infinity();
   if (x < -87.33654f) return 0.0f;
@@ -191,7 +109,7 @@ static inline float wicked_fast_expf(float x) {
 
 // Tableless IEEE-754 bit-trick + Horner polynomial approximation of logf(x).
 // Precision: < 3e-6 relative error across the entire positive float range.
-static inline float wicked_fast_logf(float x) {
+extern "C" float wicked_fast_logf(float x) {
   if (x <= 0.0f) {
     if (x == 0.0f) return -std::numeric_limits<float>::infinity();
     return std::numeric_limits<float>::quiet_NaN();
@@ -228,7 +146,7 @@ static inline float wicked_fast_logf(float x) {
 }
 
 // Tableless fast powf(x, y) = fast_exp(y * fast_log(x)) with full edge cases.
-static inline float wicked_fast_powf(float x, float y) {
+extern "C" float wicked_fast_powf(float x, float y) {
   if (y == 0.0f) {
     return 1.0f;
   }
@@ -246,27 +164,9 @@ static inline float wicked_fast_powf(float x, float y) {
   return wicked_fast_expf(y * wicked_fast_logf(x));
 }
 
-// --- EXPONENTIAL / POWER MACRO DISPATCH ---
-
-#if defined(WICKED_CUSTOM_EXP)
-#define wicked_expf(x) WICKED_CUSTOM_EXP(x)
-#elif defined(WICKED_USE_FAST_EXP_MATH)
-#define wicked_expf(x) wicked_fast_expf(x)
-#else
-#define wicked_expf(x) std::exp(x)
-#endif
-
-#if defined(WICKED_CUSTOM_LN)
-#define wicked_logf(x) WICKED_CUSTOM_LN(x)
-#elif defined(WICKED_USE_FAST_EXP_MATH)
-#define wicked_logf(x) wicked_fast_logf(x)
-#else
-#define wicked_logf(x) std::log(x)
-#endif
-
 // Derived powf: x^y = exp(y * ln(x))
 // Dead-strips Newlib's heavy powf from libm while dispatching through wicked_expf / wicked_logf.
-static inline float wicked_derived_powf(float x, float y) {
+extern "C" float wicked_derived_powf(float x, float y) {
   if (y == 0.0f) {
     return 1.0f;
   }
@@ -284,28 +184,3 @@ static inline float wicked_derived_powf(float x, float y) {
   return wicked_expf(y * wicked_logf(x));
 }
 
-#if defined(WICKED_CUSTOM_POW)
-#define wicked_powf(x, y) WICKED_CUSTOM_POW(x, y)
-#elif defined(WICKED_USE_FAST_EXP_MATH)
-#define wicked_powf(x, y) wicked_fast_powf(x, y)
-#else
-#define wicked_powf(x, y) wicked_derived_powf(x, y)
-#endif
-
-// Return the smallest index i in [first, last) at which pred(i) is true.
-// Returns last if not found.
-template <typename Idx, typename Pred>
-Idx wicked_upper_bound(Idx first, Idx last, const Pred& pred) {
-  Idx i = first;
-  Idx n = last - first;
-  while (n > 0) {
-    Idx h = n / 2;
-    if (pred(i + h)) {
-      n = h;
-    } else {
-      i += h + 1;
-      n -= h + 1;
-    }
-  }
-  return i;
-}
