@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 
 using ::testing::ElementsAre;
+using ::testing::FloatEq;
 
 namespace {
 
@@ -829,7 +830,7 @@ TEST(EvalTest, Tan) {
   EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
   EXPECT_EQ(WickedPostfixValidate(&eval, 2), WickedEvalStatus_Ok);
   WickedPostfixEvaluate(&eval);
-  EXPECT_THAT(eval.stack(), ElementsAre(0, std::tan(5)));
+  EXPECT_THAT(eval.stack(), ElementsAre(0, FloatEq(std::tan(5.0f))));
 }
 
 TEST(EvalTest, TanStackUnderflow) {

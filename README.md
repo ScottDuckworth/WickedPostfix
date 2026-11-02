@@ -52,11 +52,11 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 | 25 | `Sin` | `a` → `sin(a)` | Sine | *None* |
 | 26 | `Cos` | `a` → `cos(a)` | Cosine | *None* |
 | 27 | `CosSin` | `t` → `cos(t) sin(t)` | Simultaneous scalar cosine and sine evaluation | *None* |
-| 28 | `Atan2` | `x y` → `atan2(y, x)` | Four-quadrant inverse tangent | *None* |
-| 29 | `PanTilt` | `v[3]` → `pan tilt` | Pan and tilt spherical angles from 3D line-of-sight vector $[v_0, v_1, v_2]$: $\text{pan} = \text{atan2}(v_1, v_0)$, $\text{tilt} = \text{atan2}(v_2, \sqrt{v_0^2 + v_1^2})$ | *None* |
-| 30 | `Tan` | `a` → `tan(a)` | Tangent | *None* |
-| 31 | `Asin` | `a` → `asin(a)` | Arc sine | *None* |
-| 32 | `Acos` | `a` → `acos(a)` | Arc cosine | *None* |
+| 28 | `Tan` | `a` → `tan(a)` | Tangent | *None* |
+| 29 | `Asin` | `a` → `asin(a)` | Arc sine | *None* |
+| 30 | `Acos` | `a` → `acos(a)` | Arc cosine | *None* |
+| 31 | `Atan2` | `x y` → `atan2(y, x)` | Four-quadrant inverse tangent | *None* |
+| 32 | `PanTilt` | `v[3]` → `pan tilt` | Pan and tilt spherical angles from 3D line-of-sight vector $[v_0, v_1, v_2]$: $\text{pan} = \text{atan2}(v_1, v_0)$, $\text{tilt} = \text{atan2}(v_2, \sqrt{v_0^2 + v_1^2})$ | *None* |
 | 33 | `MulAdd` | `a b c` → `a * b + c` | Fused multiply-add | *None* |
 | 34 | `MulSub` | `a b c` → `a * b - c` | Fused multiply-subtract | *None* |
 | 35 | `SubMul` | `c a b` → `c - a * b` | Fused subtract-multiply | *None* |
@@ -84,9 +84,8 @@ For flash-constrained microcontrollers (e.g., STM32 with 32 KB or 64 KB flash), 
 #### 1. Opcode Disabling Flags (Feature Stripping)
 These flags omit specific non-core operations from the evaluator, allowing the linker (`-Wl,--gc-sections`) to dead-strip their underlying `libm` implementations:
 
-* **`-DWICKED_POSTFIX_SLIM`**: Disables both non-core exponential/power math (`Pow`, `Exp`, `Ln`) and extended trigonometry (`Tan`, `Asin`, `Acos`).
-* **`-DWICKED_POSTFIX_NO_EXP_MATH`**: Disables `Pow`, `Exp`, and `Ln` (eliminating `powf`, `expf`, and `logf`).
-* **`-DWICKED_POSTFIX_NO_EXTENDED_TRIG`**: Disables `Tan`, `Asin`, and `Acos` (eliminating `asinf`, `acosf`, and `tanf`).
+* **`-DWICKED_POSTFIX_SLIM`** or **`-DWICKED_POSTFIX_NO_EXP_MATH`**: Disables non-core exponential/power math (`Pow`, `Exp`, `Ln`), eliminating `powf`, `expf`, and `logf` from `libm`.
+*(Note: Extended trigonometric functions `Tan`, `Asin`, and `Acos` are derived algebraically directly from `Sin`/`Cos` and `Atan2`, so they dead-strip `libm`'s `tanf`, `asinf`, and `acosf` automatically across all profiles without needing to disable the opcodes).*
 
 When opcodes are disabled via these flags, programs attempting to evaluate them are rejected during validation (`WickedPostfixValidate`) with `WickedEvalStatus_UndefinedOperation`.
 
@@ -112,15 +111,15 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,642 B** (~3.6 KB) | **14,200 B** (~13.9 KB) |
-| **ESP32-S3** (Xtensa LX7) | **4,828 B** (~4.7 KB) | **15,852 B** (~15.5 KB) |
+| **STM32G4** (Cortex-M4F) | **3,686 B** (~3.6 KB) | **12,460 B** (~12.2 KB) |
+| **ESP32-S3** (Xtensa LX7) | **4,892 B** (~4.8 KB) | **13,856 B** (~13.5 KB) |
 
 #### Slim Profile (`-DWICKED_POSTFIX_SLIM`)
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Full |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,626 B** (~3.5 KB) | **9,144 B** (~8.9 KB) | **5,056 B (~4.9 KB)** |
-| **ESP32-S3** (Xtensa LX7) | **4,712 B** (~4.6 KB) | **10,504 B** (~10.3 KB) | **5,348 B (~5.2 KB)** |
+| **STM32G4** (Cortex-M4F) | **3,700 B** (~3.6 KB) | **9,216 B** (~9.0 KB) | **3,244 B (~3.2 KB)** |
+| **ESP32-S3** (Xtensa LX7) | **4,828 B** (~4.7 KB) | **10,604 B** (~10.4 KB) | **3,252 B (~3.2 KB)** |
 
 #### Slim Profile with CMSIS-DSP (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_CMSIS_DSP`)
 
@@ -128,7 +127,7 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Slim |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,626 B** (~3.5 KB) | **7,460 B** (~7.3 KB) | **1,684 B (~1.6 KB)** |
+| **STM32G4** (Cortex-M4F) | **3,700 B** (~3.6 KB) | **7,532 B** (~7.4 KB) | **1,684 B (~1.6 KB)** |
 
 #### Slim Profile with Hardware CORDIC (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_STM32_CORDIC`)
 
@@ -136,7 +135,7 @@ Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Slim |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,894 B** (~3.8 KB) | **4,268 B** (~4.2 KB) | **4,876 B (~4.8 KB)** |
+| **STM32G4** (Cortex-M4F) | **3,972 B** (~3.9 KB) | **4,344 B** (~4.2 KB) | **4,872 B (~4.8 KB)** |
 
 > [!NOTE]
 > **Firmware Considerations for CORDIC:**
@@ -146,7 +145,7 @@ Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5
 
 #### Section Breakdown (STM32G4, Thumb-2)
 * **Bytecode Validation (`WickedPostfixValidate`)**: ~570 B `.text`
-* **Bytecode Evaluation (`WickedPostfixEvaluate`)**: ~2,400 B (Slim) / ~2,464 B (Full) `.text`
+* **Bytecode Evaluation (`WickedPostfixEvaluate`)**: ~2,472 B (Slim) / ~2,508 B (Full) `.text`
 * **Reader & Utilities (`WickedPostfixRead`, `copy_n`)**: ~58 B `.text`
 * **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~550 B `.rodata`
 

@@ -58,11 +58,11 @@ const (
 	Operation_Sin        Operation = 25
 	Operation_Cos        Operation = 26
 	Operation_CosSin     Operation = 27
-	Operation_Atan2      Operation = 28
-	Operation_PanTilt    Operation = 29
-	Operation_Tan        Operation = 30
-	Operation_Asin       Operation = 31
-	Operation_Acos       Operation = 32
+	Operation_Tan        Operation = 28
+	Operation_Asin       Operation = 29
+	Operation_Acos       Operation = 30
+	Operation_Atan2      Operation = 31
+	Operation_PanTilt    Operation = 32
 	Operation_MulAdd     Operation = 33
 	Operation_MulSub     Operation = 34
 	Operation_SubMul     Operation = 35
@@ -153,16 +153,16 @@ func (op Operation) String() string {
 		return "Cos"
 	case Operation_CosSin:
 		return "CosSin"
-	case Operation_Atan2:
-		return "Atan2"
-	case Operation_PanTilt:
-		return "PanTilt"
 	case Operation_Tan:
 		return "Tan"
 	case Operation_Asin:
 		return "Asin"
 	case Operation_Acos:
 		return "Acos"
+	case Operation_Atan2:
+		return "Atan2"
+	case Operation_PanTilt:
+		return "PanTilt"
 	case Operation_MulAdd:
 		return "MulAdd"
 	case Operation_MulSub:
@@ -458,18 +458,6 @@ func (b *Builder) CosSin() *Builder {
 	return b
 }
 
-// Atan2 pops y and x and pushes atan2(y, x) (x y -> atan2(y, x)).
-func (b *Builder) Atan2() *Builder {
-	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Atan2))
-	return b
-}
-
-// PanTilt transforms a 3D line-of-sight vector [v0, v1, v2] on the stack into [pan, tilt] (v[3] -> pan tilt).
-func (b *Builder) PanTilt() *Builder {
-	b.expr.Prog = append(b.expr.Prog, uint8(Operation_PanTilt))
-	return b
-}
-
 // Tan replaces the top value on the stack with tan(a) (a -> tan(a)).
 func (b *Builder) Tan() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Tan))
@@ -485,6 +473,18 @@ func (b *Builder) Asin() *Builder {
 // Acos replaces the top value on the stack with acos(a) (a -> acos(a)).
 func (b *Builder) Acos() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Acos))
+	return b
+}
+
+// Atan2 pops y and x and pushes atan2(y, x) (x y -> atan2(y, x)).
+func (b *Builder) Atan2() *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Atan2))
+	return b
+}
+
+// PanTilt transforms a 3D line-of-sight vector [v0, v1, v2] on the stack into [pan, tilt] (v[3] -> pan tilt).
+func (b *Builder) PanTilt() *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_PanTilt))
 	return b
 }
 
@@ -866,6 +866,10 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 			}
 			stackLen += 1
 			updateMax(stackLen)
+		case Operation_Tan, Operation_Asin, Operation_Acos:
+			if stackLen < 1 {
+				return 0, 0, nil, ErrStackUnderflow
+			}
 		case Operation_Atan2:
 			if stackLen < 2 {
 				return 0, 0, nil, ErrStackUnderflow
@@ -876,10 +880,6 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 				return 0, 0, nil, ErrStackUnderflow
 			}
 			stackLen -= 1
-		case Operation_Tan, Operation_Asin, Operation_Acos:
-			if stackLen < 1 {
-				return 0, 0, nil, ErrStackUnderflow
-			}
 		case Operation_MulAdd, Operation_MulSub, Operation_SubMul:
 			if stackLen < 3 {
 				return 0, 0, nil, ErrStackUnderflow
@@ -1160,6 +1160,19 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 			t := pop()
 			s, c := math.Sincos(t)
 			stack = append(stack, c, s)
+		case Operation_Tan:
+			// Derived via Sincos to match embedded evaluator behavior and numerical semantics.
+			v := pop()
+			s, c := math.Sincos(v)
+			stack = append(stack, s/c)
+		case Operation_Asin:
+			// Derived via Atan2 and Sqrt: asin(v) = atan2(v, sqrt(1 - v^2)).
+			v := pop()
+			stack = append(stack, math.Atan2(v, math.Sqrt(1-v*v)))
+		case Operation_Acos:
+			// Derived via Atan2 and Sqrt: acos(v) = atan2(sqrt(1 - v^2), v).
+			v := pop()
+			stack = append(stack, math.Atan2(math.Sqrt(1-v*v), v))
 		case Operation_Atan2:
 			y := pop()
 			x := pop()
@@ -1170,15 +1183,6 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 			v0 := pop()
 			r := math.Sqrt(v0*v0 + v1*v1)
 			stack = append(stack, math.Atan2(v1, v0), math.Atan2(v2, r))
-		case Operation_Tan:
-			v := pop()
-			stack = append(stack, math.Tan(v))
-		case Operation_Asin:
-			v := pop()
-			stack = append(stack, math.Asin(v))
-		case Operation_Acos:
-			v := pop()
-			stack = append(stack, math.Acos(v))
 		case Operation_MulAdd:
 			c := pop()
 			b := pop()

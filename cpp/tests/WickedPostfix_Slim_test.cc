@@ -7,6 +7,7 @@
 #include <span>
 
 using ::testing::ElementsAre;
+using ::testing::FloatEq;
 
 namespace {
 
@@ -120,32 +121,38 @@ TEST(SlimProfileTest, LnDisabled) {
   EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_UndefinedOperation);
 }
 
-TEST(SlimProfileTest, TanDisabled) {
+TEST(SlimProfileTest, TanWorks) {
   WickedPostfixWriter writer;
   writer.Tan();
   auto buffer = writer.Write();
 
   TestEval eval(4, {0.5f});
   EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
-  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_UndefinedOperation);
+  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_THAT(eval.stack(), ElementsAre(FloatEq(std::tan(0.5f))));
 }
 
-TEST(SlimProfileTest, AsinDisabled) {
+TEST(SlimProfileTest, AsinWorks) {
   WickedPostfixWriter writer;
   writer.Asin();
   auto buffer = writer.Write();
 
   TestEval eval(4, {0.5f});
   EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
-  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_UndefinedOperation);
+  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_THAT(eval.stack(), ElementsAre(FloatEq(std::asin(0.5f))));
 }
 
-TEST(SlimProfileTest, AcosDisabled) {
+TEST(SlimProfileTest, AcosWorks) {
   WickedPostfixWriter writer;
   writer.Acos();
   auto buffer = writer.Write();
 
   TestEval eval(4, {0.5f});
   EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
-  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_UndefinedOperation);
+  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_THAT(eval.stack(), ElementsAre(FloatEq(std::acos(0.5f))));
 }

@@ -8,15 +8,11 @@
 
 // Postfix engine configuration profiles:
 // - WICKED_POSTFIX_SLIM: disables non-core exponential/power math (Pow, Exp, Ln)
-//   and extended trigonometry (Tan, Asin, Acos) to minimize flash on microcontrollers.
+//   to minimize flash on microcontrollers.
 // - WICKED_POSTFIX_NO_EXP_MATH: disables Pow, Exp, Ln (eliminates powf, expf, logf).
-// - WICKED_POSTFIX_NO_EXTENDED_TRIG: disables Tan, Asin, Acos (eliminates asinf, acosf, tanf).
 #if defined(WICKED_POSTFIX_SLIM)
 #ifndef WICKED_POSTFIX_NO_EXP_MATH
 #define WICKED_POSTFIX_NO_EXP_MATH
-#endif
-#ifndef WICKED_POSTFIX_NO_EXTENDED_TRIG
-#define WICKED_POSTFIX_NO_EXTENDED_TRIG
 #endif
 #endif
 
@@ -77,11 +73,11 @@ typedef enum WickedPostfixOp {
   WickedPostfixOp_Sin       = 25,
   WickedPostfixOp_Cos       = 26,
   WickedPostfixOp_CosSin    = 27,
-  WickedPostfixOp_Atan2     = 28,
-  WickedPostfixOp_PanTilt   = 29,
-  WickedPostfixOp_Tan       = 30,
-  WickedPostfixOp_Asin      = 31,
-  WickedPostfixOp_Acos      = 32,
+  WickedPostfixOp_Tan       = 28,
+  WickedPostfixOp_Asin      = 29,
+  WickedPostfixOp_Acos      = 30,
+  WickedPostfixOp_Atan2     = 31,
+  WickedPostfixOp_PanTilt   = 32,
   WickedPostfixOp_MulAdd    = 33,
   WickedPostfixOp_MulSub    = 34,
   WickedPostfixOp_SubMul    = 35,
@@ -300,12 +296,6 @@ class WickedPostfixWriter {
   // Replaces t with cos(t) and pushes sin(t) (t -> cos(t) sin(t)).
   void CosSin() { EmitOp(WickedPostfixOp_CosSin); }
 
-  // Pops y and x and pushes atan2(y, x) (x y -> atan2(y, x)).
-  void Atan2() { EmitOp(WickedPostfixOp_Atan2); }
-
-  // Transforms a 3D line-of-sight vector [v0, v1, v2] into [pan, tilt] (v[3] -> pan tilt).
-  void PanTilt() { EmitOp(WickedPostfixOp_PanTilt); }
-
   // Tangent of top value (a -> tan(a)).
   void Tan() { EmitOp(WickedPostfixOp_Tan); }
 
@@ -314,6 +304,12 @@ class WickedPostfixWriter {
 
   // Arc cosine of top value (a -> acos(a)).
   void Acos() { EmitOp(WickedPostfixOp_Acos); }
+
+  // Pops y and x and pushes atan2(y, x) (x y -> atan2(y, x)).
+  void Atan2() { EmitOp(WickedPostfixOp_Atan2); }
+
+  // Transforms a 3D line-of-sight vector [v0, v1, v2] into [pan, tilt] (v[3] -> pan tilt).
+  void PanTilt() { EmitOp(WickedPostfixOp_PanTilt); }
 
   // Pops c, b, a and pushes a*b + c (a b c -> a * b + c).
   void MulAdd() { EmitOp(WickedPostfixOp_MulAdd); }

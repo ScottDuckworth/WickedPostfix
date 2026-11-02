@@ -54,11 +54,11 @@ extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
     case WickedPostfixOp_Sin:       return "Sin";
     case WickedPostfixOp_Cos:       return "Cos";
     case WickedPostfixOp_CosSin:    return "CosSin";
-    case WickedPostfixOp_Atan2:     return "Atan2";
-    case WickedPostfixOp_PanTilt:   return "PanTilt";
     case WickedPostfixOp_Tan:       return "Tan";
     case WickedPostfixOp_Asin:      return "Asin";
     case WickedPostfixOp_Acos:      return "Acos";
+    case WickedPostfixOp_Atan2:     return "Atan2";
+    case WickedPostfixOp_PanTilt:   return "PanTilt";
     case WickedPostfixOp_MulAdd:    return "MulAdd";
     case WickedPostfixOp_MulSub:    return "MulSub";
     case WickedPostfixOp_SubMul:    return "SubMul";
@@ -393,13 +393,11 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, ui
       case WickedPostfixOp_Sin:
       case WickedPostfixOp_Cos:       status = validate::UnaryOp(ctx); break;
       case WickedPostfixOp_CosSin:    status = validate::CosSin(ctx); break;
-      case WickedPostfixOp_Atan2:     status = validate::BinaryOp(ctx); break;
-      case WickedPostfixOp_PanTilt:   status = validate::PanTilt(ctx); break;
-#ifndef WICKED_POSTFIX_NO_EXTENDED_TRIG
       case WickedPostfixOp_Tan:
       case WickedPostfixOp_Asin:
       case WickedPostfixOp_Acos:      status = validate::UnaryOp(ctx); break;
-#endif
+      case WickedPostfixOp_Atan2:     status = validate::BinaryOp(ctx); break;
+      case WickedPostfixOp_PanTilt:   status = validate::PanTilt(ctx); break;
       case WickedPostfixOp_MulAdd:
       case WickedPostfixOp_MulSub:
       case WickedPostfixOp_SubMul:    status = validate::MulAdd(ctx); break;
@@ -651,6 +649,24 @@ WICKED_ALWAYS_INLINE void CosSin(EvalContext& ctx) {
   ctx.push(s);
 }
 
+// Derived via wicked_sincosf and wicked_atan2f to dead-strip libm's tanf/asinf/acosf
+// and automatically leverage hardware CORDIC / DSP acceleration when available.
+WICKED_ALWAYS_INLINE void Tan(EvalContext& ctx) {
+  float s, c;
+  wicked_sincosf(ctx.peek(), &s, &c);
+  ctx.peek() = s / c;
+}
+
+WICKED_ALWAYS_INLINE void Asin(EvalContext& ctx) {
+  float x = ctx.peek();
+  ctx.peek() = wicked_atan2f(x, std::sqrt(1.0f - x * x));
+}
+
+WICKED_ALWAYS_INLINE void Acos(EvalContext& ctx) {
+  float x = ctx.peek();
+  ctx.peek() = wicked_atan2f(std::sqrt(1.0f - x * x), x);
+}
+
 WICKED_ALWAYS_INLINE void Atan2(EvalContext& ctx) {
   float y = ctx.pop();
   ctx.peek() = wicked_atan2f(y, ctx.peek());
@@ -665,20 +681,6 @@ WICKED_ALWAYS_INLINE void PanTilt(EvalContext& ctx) {
   ctx.sp[-2] = wicked_atan2f(v2, r);
   --ctx.sp;
 }
-
-#ifndef WICKED_POSTFIX_NO_EXTENDED_TRIG
-WICKED_ALWAYS_INLINE void Tan(EvalContext& ctx) {
-  ctx.peek() = std::tan(ctx.peek());
-}
-
-WICKED_ALWAYS_INLINE void Asin(EvalContext& ctx) {
-  ctx.peek() = std::asin(ctx.peek());
-}
-
-WICKED_ALWAYS_INLINE void Acos(EvalContext& ctx) {
-  ctx.peek() = std::acos(ctx.peek());
-}
-#endif
 
 WICKED_ALWAYS_INLINE void MulAdd(EvalContext& ctx) {
   float c = ctx.pop();
@@ -1006,13 +1008,11 @@ extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_si
       case WickedPostfixOp_Sin:       ops::Sin(ctx); break;
       case WickedPostfixOp_Cos:       ops::Cos(ctx); break;
       case WickedPostfixOp_CosSin:    ops::CosSin(ctx); break;
-      case WickedPostfixOp_Atan2:     ops::Atan2(ctx); break;
-      case WickedPostfixOp_PanTilt:   ops::PanTilt(ctx); break;
-#ifndef WICKED_POSTFIX_NO_EXTENDED_TRIG
       case WickedPostfixOp_Tan:       ops::Tan(ctx); break;
       case WickedPostfixOp_Asin:      ops::Asin(ctx); break;
       case WickedPostfixOp_Acos:      ops::Acos(ctx); break;
-#endif
+      case WickedPostfixOp_Atan2:     ops::Atan2(ctx); break;
+      case WickedPostfixOp_PanTilt:   ops::PanTilt(ctx); break;
       case WickedPostfixOp_MulAdd:    ops::MulAdd(ctx); break;
       case WickedPostfixOp_MulSub:    ops::MulSub(ctx); break;
       case WickedPostfixOp_SubMul:    ops::SubMul(ctx); break;
