@@ -114,15 +114,15 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,603 B** (~4.5 KB) | **10,804 B** (~10.6 KB) |
-| **ESP32-S3** (Xtensa LX7) | **5,961 B** (~5.8 KB) | **12,268 B** (~12.0 KB) |
+| **STM32G4** (Cortex-M4F) | **4,563 B** (~4.5 KB) | **10,804 B** (~10.6 KB) |
+| **ESP32-S3** (Xtensa LX7) | **5,913 B** (~5.8 KB) | **12,268 B** (~12.0 KB) |
 
 #### Fast Exp Math (`-DWICKED_USE_FAST_EXP_MATH`)
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,407 B** (~4.3 KB) | **9,876 B** (~9.6 KB) | **928 B (~0.9 KB)** |
-| **ESP32-S3** (Xtensa LX7) | **5,737 B** (~5.6 KB) | **11,368 B** (~11.1 KB) | **900 B (~0.9 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,367 B** (~4.3 KB) | **9,876 B** (~9.6 KB) | **928 B (~0.9 KB)** |
+| **ESP32-S3** (Xtensa LX7) | **5,689 B** (~5.6 KB) | **11,368 B** (~11.1 KB) | **900 B (~0.9 KB)** |
 
 #### Hardware CORDIC (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_STM32_CORDIC`)
 
@@ -130,7 +130,7 @@ Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,675 B** (~4.6 KB) | **5,148 B** (~5.0 KB) | **5,656 B (~5.5 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,635 B** (~4.5 KB) | **5,148 B** (~5.0 KB) | **5,656 B (~5.5 KB)** |
 
 #### CMSIS-DSP (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_CMSIS_DSP`)
 
@@ -138,7 +138,7 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,407 B** (~4.3 KB) | **8,340 B** (~8.1 KB) | **2,464 B (~2.4 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,367 B** (~4.3 KB) | **8,340 B** (~8.1 KB) | **2,464 B (~2.4 KB)** |
 
 > [!NOTE]
 > **Firmware Considerations for CORDIC:**

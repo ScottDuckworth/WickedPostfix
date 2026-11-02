@@ -1042,13 +1042,3 @@ extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_si
     }
   }
 }
-
-bool WickedPostfixWriter::Write(uint8_t* data, size_t size) const {
-  if (size < data_size()) return false;
-
-  auto* header = reinterpret_cast<WickedPostfixHeader*>(data);
-  header->prog_size = prog_size();
-  memcpy(data + prog_offset(), prog_data(), prog_size());
-
-  return true;
-}

@@ -56,6 +56,7 @@ WickedEvalStatus_t WickedPathEvaluate(const uint8_t* path_data, uint32_t t, floa
 #ifdef __cplusplus
 }
 
+#include "WickedPostfixWriter.h"
 #include <span>
 #include <vector>
 

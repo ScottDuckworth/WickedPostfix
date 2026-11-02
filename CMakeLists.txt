@@ -16,6 +16,7 @@ include_directories(
 add_library(WickedWinchProtocol
   cpp/include/WickedEvalStatus.h
   cpp/include/WickedPostfix.h
+  cpp/include/WickedPostfixWriter.h
   cpp/include/WickedPath.h
   cpp/src/WickedEvalStatus.cc
   cpp/src/WickedPostfix.cc

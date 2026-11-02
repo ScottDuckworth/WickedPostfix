@@ -1,4 +1,5 @@
 #include "WickedPostfix.h"
+#include "WickedPostfixWriter.h"
 #include "WickedMath.h"
 
 #include <cmath>
@@ -2073,6 +2074,96 @@ TEST(EvalTest, VectorEncoding) {
   // MulVec(255) -> [Op_MulVec, 254]
   EXPECT_EQ(prog[4], WickedPostfixOp_MulVec);
   EXPECT_EQ(prog[5], 254);
+}
+
+TEST(StreamWriterTest, MatchesDynamicWriter) {
+  WickedPostfixWriter dynamic_writer;
+  dynamic_writer.Push(42.5f);
+  dynamic_writer.Push(2.0f);
+  dynamic_writer.Mul();
+  dynamic_writer.Sin();
+  dynamic_writer.CosSin();
+  dynamic_writer.MulMat(2, 2, {1.0f, 2.0f, 3.0f, 4.0f});
+  dynamic_writer.Poly({1.0f, 0.5f, 0.25f});
+
+  std::vector<uint8_t> expected = dynamic_writer.Write();
+
+  uint8_t stream_buf[256];
+  WickedPostfixStreamWriter stream_writer(stream_buf, sizeof(stream_buf));
+  stream_writer.Push(42.5f);
+  stream_writer.Push(2.0f);
+  stream_writer.Mul();
+  stream_writer.Sin();
+  stream_writer.CosSin();
+  stream_writer.MulMat(2, 2, {1.0f, 2.0f, 3.0f, 4.0f});
+  stream_writer.Poly({1.0f, 0.5f, 0.25f});
+
+  EXPECT_TRUE(stream_writer.ok());
+  EXPECT_FALSE(stream_writer.overflow());
+  EXPECT_TRUE(stream_writer.Finalize());
+  EXPECT_EQ(stream_writer.bytes_written(), expected.size());
+  EXPECT_EQ(stream_writer.bytes_needed(), expected.size());
+  EXPECT_EQ(stream_writer.prog_size(), dynamic_writer.prog_size());
+
+  EXPECT_EQ(std::vector<uint8_t>(stream_buf, stream_buf + stream_writer.bytes_written()), expected);
+
+  // Validate and evaluate the streamed output
+  TestEval eval(16, {});
+  ASSERT_TRUE(WickedPostfixRead(stream_buf, stream_writer.bytes_written(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 2), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_EQ(eval.stack().size(), 2);
+}
+
+TEST(StreamWriterTest, OverflowAndRecovery) {
+  uint8_t tiny_buf[6];
+  WickedPostfixStreamWriter stream_writer(tiny_buf, sizeof(tiny_buf));
+  stream_writer.Push(10.0f);  // Op (1B) + Float (4B) = 5B payload -> 7B total with header
+  stream_writer.Push(20.0f);  // Another 5B
+  stream_writer.Add();        // 1B
+
+  EXPECT_FALSE(stream_writer.ok());
+  EXPECT_TRUE(stream_writer.overflow());
+  EXPECT_FALSE(stream_writer.Finalize());
+  EXPECT_EQ(stream_writer.bytes_written(), 0);
+
+  // Expected bytes needed: 2 (header) + 5 + 5 + 1 = 13 bytes
+  size_t needed = stream_writer.bytes_needed();
+  EXPECT_EQ(needed, 13);
+
+  // Retry with exact needed capacity
+  std::vector<uint8_t> exact_buf(needed);
+  WickedPostfixStreamWriter retry_writer(exact_buf);
+  retry_writer.Push(10.0f);
+  retry_writer.Push(20.0f);
+  retry_writer.Add();
+
+  EXPECT_TRUE(retry_writer.ok());
+  EXPECT_TRUE(retry_writer.Finalize());
+  EXPECT_EQ(retry_writer.bytes_written(), needed);
+
+  TestEval eval(4, {});
+  ASSERT_TRUE(WickedPostfixRead(exact_buf.data(), exact_buf.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_EQ(eval.stack()[0], 30.0f);
+}
+
+TEST(StreamWriterTest, CapacityEdgeCases) {
+  // Capacity smaller than header size
+  uint8_t tiny[1];
+  WickedPostfixStreamWriter small_stream(tiny, sizeof(tiny));
+  EXPECT_FALSE(small_stream.ok());
+  EXPECT_TRUE(small_stream.overflow());
+  EXPECT_FALSE(small_stream.Finalize());
+
+  // Empty program with exact header size
+  uint8_t header_only[2];
+  WickedPostfixStreamWriter empty_stream(header_only, sizeof(header_only));
+  EXPECT_TRUE(empty_stream.ok());
+  EXPECT_TRUE(empty_stream.Finalize());
+  EXPECT_EQ(empty_stream.bytes_written(), 2);
+  EXPECT_EQ(empty_stream.prog_size(), 0);
 }
 
 }  // namespace
