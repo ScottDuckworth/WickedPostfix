@@ -444,7 +444,7 @@ func (b *Builder) Pow() *Builder {
 	return b
 }
 
-// Atan2 pops x and y and pushes atan2(y, x) (y x -> atan2(y, x)).
+// Atan2 pops y and x and pushes atan2(y, x) (x y -> atan2(y, x)).
 func (b *Builder) Atan2() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Atan2))
 	return b
@@ -1150,8 +1150,8 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 			lhs := pop()
 			stack = append(stack, math.Pow(lhs, rhs))
 		case Operation_Atan2:
-			x := pop()
 			y := pop()
+			x := pop()
 			stack = append(stack, math.Atan2(y, x))
 		case Operation_Neg:
 			v := pop()

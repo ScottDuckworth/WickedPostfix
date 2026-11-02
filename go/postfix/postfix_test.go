@@ -387,7 +387,7 @@ func TestEvalPostfixExpression(t *testing.T) {
 		{
 			name:      "atan2",
 			expr:      postfix.MakeBuilder().Atan2().Build(),
-			stack:     []float64{1, 0},
+			stack:     []float64{0, 1},
 			wantStack: []float64{math.Pi / 2},
 		},
 		{

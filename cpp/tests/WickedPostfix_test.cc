@@ -627,7 +627,7 @@ TEST(EvalTest, Atan2) {
   writer.Atan2();
   auto buffer = writer.Write();
 
-  TestEval eval(4, {0, 5, 4});
+  TestEval eval(4, {0, 4, 5});
   EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
   EXPECT_EQ(WickedPostfixValidate(&eval, 2), WickedEvalStatus_Ok);
   WickedPostfixEvaluate(&eval);

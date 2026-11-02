@@ -319,7 +319,7 @@ class WickedPostfixWriter {
   // Pops rhs and lhs and pushes lhs^rhs (a b -> a ^ b).
   void Pow() { EmitOp(WickedPostfixOp_Pow); }
 
-  // Pops x and y and pushes atan2(y, x) (y x -> atan2(y, x)).
+  // Pops y and x and pushes atan2(y, x) (x y -> atan2(y, x)).
   void Atan2() { EmitOp(WickedPostfixOp_Atan2); }
 
   // Negates the top value (a -> -a).

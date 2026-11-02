@@ -626,8 +626,8 @@ WICKED_ALWAYS_INLINE void Pow(EvalContext& ctx) {
 #endif
 
 WICKED_ALWAYS_INLINE void Atan2(EvalContext& ctx) {
-  float x = ctx.pop();
-  ctx.peek() = wicked_atan2f(ctx.peek(), x);
+  float y = ctx.pop();
+  ctx.peek() = wicked_atan2f(y, ctx.peek());
 }
 
 WICKED_ALWAYS_INLINE void Neg(EvalContext& ctx) {
