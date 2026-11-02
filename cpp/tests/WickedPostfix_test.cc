@@ -1958,69 +1958,6 @@ TEST(EvalTest, OpToString) {
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_PanTilt), "PanTilt");
 }
 
-TEST(EvalTest, Predicates) {
-  // Binary scalar: 13..18 (Add..Atan2)
-  EXPECT_TRUE(WickedPostfixOpIsBinaryScalar(WickedPostfixOp_Add));
-  EXPECT_TRUE(WickedPostfixOpIsBinaryScalar(WickedPostfixOp_Pow));
-  EXPECT_TRUE(WickedPostfixOpIsBinaryScalar(WickedPostfixOp_Atan2));
-  EXPECT_FALSE(WickedPostfixOpIsBinaryScalar(WickedPostfixOp_Move));
-  EXPECT_FALSE(WickedPostfixOpIsBinaryScalar(WickedPostfixOp_Neg));
-
-  // Unary scalar: 19..29 (Neg..Acos)
-  EXPECT_TRUE(WickedPostfixOpIsUnaryScalar(WickedPostfixOp_Neg));
-  EXPECT_TRUE(WickedPostfixOpIsUnaryScalar(WickedPostfixOp_Sqrt));
-  EXPECT_TRUE(WickedPostfixOpIsUnaryScalar(WickedPostfixOp_Acos));
-  EXPECT_FALSE(WickedPostfixOpIsUnaryScalar(WickedPostfixOp_Atan2));
-  EXPECT_FALSE(WickedPostfixOpIsUnaryScalar(WickedPostfixOp_Ipow));
-
-  // Scalar: 13..33 (Add..SubMul)
-  EXPECT_TRUE(WickedPostfixOpIsScalar(WickedPostfixOp_Add));
-  EXPECT_TRUE(WickedPostfixOpIsScalar(WickedPostfixOp_Ipow));
-  EXPECT_TRUE(WickedPostfixOpIsScalar(WickedPostfixOp_MulAdd));
-  EXPECT_TRUE(WickedPostfixOpIsScalar(WickedPostfixOp_MulSub));
-  EXPECT_TRUE(WickedPostfixOpIsScalar(WickedPostfixOp_SubMul));
-  EXPECT_FALSE(WickedPostfixOpIsScalar(WickedPostfixOp_Copy));
-  EXPECT_FALSE(WickedPostfixOpIsScalar(WickedPostfixOp_AddVec));
-
-  // Binary vector: 35..38 (AddVec..DivVec)
-  EXPECT_TRUE(WickedPostfixOpIsBinaryVec(WickedPostfixOp_AddVec));
-  EXPECT_TRUE(WickedPostfixOpIsBinaryVec(WickedPostfixOp_DivVec));
-  EXPECT_FALSE(WickedPostfixOpIsBinaryVec(WickedPostfixOp_MulAdd));
-  EXPECT_FALSE(WickedPostfixOpIsBinaryVec(WickedPostfixOp_MulSub));
-  EXPECT_FALSE(WickedPostfixOpIsBinaryVec(WickedPostfixOp_DotVec));
-  EXPECT_FALSE(WickedPostfixOpIsBinaryVec(WickedPostfixOp_NegVec));
-
-  // Unary vector: 39..40 (NegVec..InvVec)
-  EXPECT_TRUE(WickedPostfixOpIsUnaryVec(WickedPostfixOp_NegVec));
-  EXPECT_TRUE(WickedPostfixOpIsUnaryVec(WickedPostfixOp_InvVec));
-  EXPECT_FALSE(WickedPostfixOpIsUnaryVec(WickedPostfixOp_DivVec));
-  EXPECT_FALSE(WickedPostfixOpIsUnaryVec(WickedPostfixOp_DotVec));
-  EXPECT_FALSE(WickedPostfixOpIsUnaryVec(WickedPostfixOp_NormSqVec));
-
-  // Vector reduction: 42..43 (NormSqVec..SumVec)
-  EXPECT_TRUE(WickedPostfixOpIsVectorReduction(WickedPostfixOp_NormSqVec));
-  EXPECT_TRUE(WickedPostfixOpIsVectorReduction(WickedPostfixOp_SumVec));
-  EXPECT_FALSE(WickedPostfixOpIsVectorReduction(WickedPostfixOp_InvVec));
-  EXPECT_FALSE(WickedPostfixOpIsVectorReduction(WickedPostfixOp_DotVec));
-  EXPECT_FALSE(WickedPostfixOpIsVectorReduction(WickedPostfixOp_MulAddVec));
-
-  // Vector: 34..48 (PushVec..LerpVec)
-  EXPECT_TRUE(WickedPostfixOpIsVector(WickedPostfixOp_PushVec));
-  EXPECT_TRUE(WickedPostfixOpIsVector(WickedPostfixOp_AddVec));
-  EXPECT_TRUE(WickedPostfixOpIsVector(WickedPostfixOp_DotVec));
-  EXPECT_TRUE(WickedPostfixOpIsVector(WickedPostfixOp_LerpVec));
-  EXPECT_FALSE(WickedPostfixOpIsVector(WickedPostfixOp_MulAdd));
-  EXPECT_FALSE(WickedPostfixOpIsVector(WickedPostfixOp_SubMul));
-  EXPECT_FALSE(WickedPostfixOpIsVector(WickedPostfixOp_MulMat));
-
-  // Size operand: 34..48 (PushVec..LerpVec)
-  EXPECT_TRUE(WickedPostfixOpHasSizeOperand(WickedPostfixOp_PushVec));
-  EXPECT_TRUE(WickedPostfixOpHasSizeOperand(WickedPostfixOp_AddVec));
-  EXPECT_TRUE(WickedPostfixOpHasSizeOperand(WickedPostfixOp_DotVec));
-  EXPECT_TRUE(WickedPostfixOpHasSizeOperand(WickedPostfixOp_LerpVec));
-  EXPECT_FALSE(WickedPostfixOpHasSizeOperand(WickedPostfixOp_MulMat));
-}
-
 TEST(EvalTest, VectorEncoding) {
   WickedPostfixWriter writer;
   writer.AddVec(1);

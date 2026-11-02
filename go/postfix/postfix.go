@@ -85,46 +85,6 @@ const (
 	Operation_PanTilt    Operation = 52
 )
 
-// IsBinaryScalar reports whether op is a binary scalar operation (13..18).
-func (op Operation) IsBinaryScalar() bool {
-	return op >= Operation_Add && op <= Operation_Atan2
-}
-
-// IsUnaryScalar reports whether op is a unary scalar operation (19..29).
-func (op Operation) IsUnaryScalar() bool {
-	return op >= Operation_Neg && op <= Operation_Acos
-}
-
-// IsScalar reports whether op is any scalar operation (13..33).
-func (op Operation) IsScalar() bool {
-	return op >= Operation_Add && op <= Operation_SubMul
-}
-
-// IsBinaryVec reports whether op is a binary vector operation (35..38).
-func (op Operation) IsBinaryVec() bool {
-	return op >= Operation_AddVec && op <= Operation_DivVec
-}
-
-// IsUnaryVec reports whether op is a unary vector operation (39..40).
-func (op Operation) IsUnaryVec() bool {
-	return op >= Operation_NegVec && op <= Operation_InvVec
-}
-
-// IsVectorReduction reports whether op is a vector reduction operation (42..43).
-func (op Operation) IsVectorReduction() bool {
-	return op >= Operation_NormSqVec && op <= Operation_SumVec
-}
-
-// IsVector reports whether op is any vector operation with a size operand (34..48).
-func (op Operation) IsVector() bool {
-	return op >= Operation_PushVec && op <= Operation_LerpVec
-}
-
-// HasSizeOperand reports whether op has a 1-byte size operand (34..48).
-func (op Operation) HasSizeOperand() bool {
-	return op >= Operation_PushVec && op <= Operation_LerpVec
-}
-
 // Expression represents an immutable bytecode sequence of postfix operations.
 type Expression struct {
 	Prog []uint8

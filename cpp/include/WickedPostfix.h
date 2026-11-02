@@ -104,46 +104,6 @@ typedef enum WickedPostfixOp {
   WickedPostfixOp_PanTilt   = 52,
 } WickedPostfixOp_t;
 
-// Returns true if op is a binary scalar operation (13..18).
-static inline bool WickedPostfixOpIsBinaryScalar(WickedPostfixOp_t op) {
-  return op >= WickedPostfixOp_Add && op <= WickedPostfixOp_Atan2;
-}
-
-// Returns true if op is a unary scalar operation (19..29).
-static inline bool WickedPostfixOpIsUnaryScalar(WickedPostfixOp_t op) {
-  return op >= WickedPostfixOp_Neg && op <= WickedPostfixOp_Acos;
-}
-
-// Returns true if op is any scalar operation (13..33).
-static inline bool WickedPostfixOpIsScalar(WickedPostfixOp_t op) {
-  return op >= WickedPostfixOp_Add && op <= WickedPostfixOp_SubMul;
-}
-
-// Returns true if op is a binary vector operation (35..38).
-static inline bool WickedPostfixOpIsBinaryVec(WickedPostfixOp_t op) {
-  return op >= WickedPostfixOp_AddVec && op <= WickedPostfixOp_DivVec;
-}
-
-// Returns true if op is a unary vector operation (39..40).
-static inline bool WickedPostfixOpIsUnaryVec(WickedPostfixOp_t op) {
-  return op >= WickedPostfixOp_NegVec && op <= WickedPostfixOp_InvVec;
-}
-
-// Returns true if op is a vector reduction operation (42..43).
-static inline bool WickedPostfixOpIsVectorReduction(WickedPostfixOp_t op) {
-  return op >= WickedPostfixOp_NormSqVec && op <= WickedPostfixOp_SumVec;
-}
-
-// Returns true if op is a vector operation (34..48).
-static inline bool WickedPostfixOpIsVector(WickedPostfixOp_t op) {
-  return op >= WickedPostfixOp_PushVec && op <= WickedPostfixOp_LerpVec;
-}
-
-// Returns true if op takes a 1-byte size operand (34..48).
-static inline bool WickedPostfixOpHasSizeOperand(WickedPostfixOp_t op) {
-  return op >= WickedPostfixOp_PushVec && op <= WickedPostfixOp_LerpVec;
-}
-
 // Returns the string representation of an opcode.
 const char* WickedPostfixOpToString(WickedPostfixOp_t op);
 
