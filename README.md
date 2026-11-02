@@ -52,7 +52,7 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 | 25 | `Sin` | `a` → `sin(a)` | Sine | *None* |
 | 26 | `Cos` | `a` → `cos(a)` | Cosine | *None* |
 | 27 | `CosSin` | `t` → `cos(t) sin(t)` | Simultaneous scalar cosine and sine evaluation | *None* |
-| 28 | `Atan2` | `y x` → `atan2(y, x)` | Four-quadrant inverse tangent | *None* |
+| 28 | `Atan2` | `x y` → `atan2(y, x)` | Four-quadrant inverse tangent | *None* |
 | 29 | `PanTilt` | `v[3]` → `pan tilt` | Pan and tilt spherical angles from 3D line-of-sight vector $[v_0, v_1, v_2]$: $\text{pan} = \text{atan2}(v_1, v_0)$, $\text{tilt} = \text{atan2}(v_2, \sqrt{v_0^2 + v_1^2})$ | *None* |
 | 30 | `Tan` | `a` → `tan(a)` | Tangent | *None* |
 | 31 | `Asin` | `a` → `asin(a)` | Arc sine | *None* |
