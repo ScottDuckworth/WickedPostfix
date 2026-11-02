@@ -69,15 +69,16 @@ const (
 	Operation_DivVec     Operation = 36
 	Operation_NegVec     Operation = 37
 	Operation_InvVec     Operation = 38
-	Operation_NormSqVec  Operation = 39
-	Operation_SumVec     Operation = 40
-	Operation_MulAddVec  Operation = 41
-	Operation_ScaleVec   Operation = 42
-	Operation_LerpVec    Operation = 43
-	Operation_MulMat     Operation = 44
-	Operation_Poly       Operation = 45
-	Operation_CosSin     Operation = 46
-	Operation_PanTilt    Operation = 47
+	Operation_DotVec     Operation = 39
+	Operation_NormSqVec  Operation = 40
+	Operation_SumVec     Operation = 41
+	Operation_MulAddVec  Operation = 42
+	Operation_ScaleVec   Operation = 43
+	Operation_LerpVec    Operation = 44
+	Operation_MulMat     Operation = 45
+	Operation_Poly       Operation = 46
+	Operation_CosSin     Operation = 47
+	Operation_PanTilt    Operation = 48
 )
 
 // IsBinaryScalar reports whether op is a binary scalar operation (13..18).
@@ -105,17 +106,17 @@ func (op Operation) IsUnaryVec() bool {
 	return op >= Operation_NegVec && op <= Operation_InvVec
 }
 
-// IsVectorReduction reports whether op is a vector reduction operation (39..40).
+// IsVectorReduction reports whether op is a vector reduction operation (40..41).
 func (op Operation) IsVectorReduction() bool {
 	return op >= Operation_NormSqVec && op <= Operation_SumVec
 }
 
-// IsVector reports whether op is any vector operation with a size operand (32..43).
+// IsVector reports whether op is any vector operation with a size operand (32..44).
 func (op Operation) IsVector() bool {
 	return op >= Operation_PushVec && op <= Operation_LerpVec
 }
 
-// HasSizeOperand reports whether op has a 1-byte size operand (32..43).
+// HasSizeOperand reports whether op has a 1-byte size operand (32..44).
 func (op Operation) HasSizeOperand() bool {
 	return op >= Operation_PushVec && op <= Operation_LerpVec
 }
@@ -211,6 +212,8 @@ func (op Operation) String() string {
 		return "NegVec"
 	case Operation_InvVec:
 		return "InvVec"
+	case Operation_DotVec:
+		return "DotVec"
 	case Operation_NormSqVec:
 		return "NormSqVec"
 	case Operation_SumVec:
@@ -591,6 +594,15 @@ func (b *Builder) InvVec(size int) *Builder {
 	return b
 }
 
+// DotVec pops vector rhs and vector lhs and pushes their scalar dot product (u[N] v[N] -> (u · v)).
+func (b *Builder) DotVec(size int) *Builder {
+	if size < 1 || size > 255 {
+		panic(fmt.Sprintf("DotVec size (%d) must be in range [1, 255]", size))
+	}
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_DotVec), uint8(size-1))
+	return b
+}
+
 // NormSqVec pops a vector and pushes the scalar squared Euclidean norm ||v||^2 (v[N] -> ||v||^2).
 func (b *Builder) NormSqVec(size int) *Builder {
 	if size < 1 || size > 255 {
@@ -891,6 +903,15 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 			if stackLen < size {
 				return 0, 0, nil, ErrStackUnderflow
 			}
+		case Operation_DotVec:
+			if avail() < 1 {
+				return 0, 0, nil, ErrIllegalOperation
+			}
+			size := fetchByte() + 1
+			if stackLen < size*2 {
+				return 0, 0, nil, ErrStackUnderflow
+			}
+			stackLen -= size*2 - 1
 		case Operation_NormSqVec, Operation_SumVec:
 			if avail() < 1 {
 				return 0, 0, nil, ErrIllegalOperation
@@ -1214,6 +1235,15 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 			for i := range size {
 				stack = append(stack, 1.0/vec[i])
 			}
+		case Operation_DotVec:
+			size := fetchByte() + 1
+			rhs := popv(size)
+			lhs := popv(size)
+			var result float64
+			for i := range size {
+				result += lhs[i] * rhs[i]
+			}
+			stack = append(stack, result)
 		case Operation_NormSqVec:
 			size := fetchByte() + 1
 			vec := popv(size)

@@ -681,6 +681,18 @@ func TestEvalPostfixExpression(t *testing.T) {
 			wantErr: postfix.ErrStackUnderflow,
 		},
 		{
+			name:      "dot vector 3",
+			expr:      postfix.MakeBuilder().DotVec(3).Build(),
+			stack:     []float64{0, 1, 2, 3, 4, 5, 6},
+			wantStack: []float64{0, 32},
+		},
+		{
+			name:    "dot vector underflow",
+			expr:    postfix.MakeBuilder().DotVec(3).Build(),
+			stack:   []float64{0, 1, 2, 3, 4},
+			wantErr: postfix.ErrStackUnderflow,
+		},
+		{
 			name:      "norm squared vector 2",
 			expr:      postfix.MakeBuilder().NormSqVec(2).Build(),
 			stack:     []float64{3, 4},
@@ -777,35 +789,35 @@ func TestEvalPostfixExpression(t *testing.T) {
 			wantErr: postfix.ErrStackUnderflow,
 		},
 		{
-			name: "multiply matrix 3 4",
-			expr: postfix.MakeBuilder().MulMat(3, 4, 1, 5, 9, 2, 6, 10, 3, 7, 11, 4, 8, 12).Build(),
+			name:  "multiply matrix 3 4",
+			expr:  postfix.MakeBuilder().MulMat(3, 4, 1, 5, 9, 2, 6, 10, 3, 7, 11, 4, 8, 12).Build(),
 			stack: []float64{1, 2, 3},
 			wantStack: []float64{
 				1*1 + 2*5 + 3*9, 1*2 + 2*6 + 3*10, 1*3 + 2*7 + 3*11, 1*4 + 2*8 + 3*12,
 			},
 		},
 		{
-			name: "multiply matrix square 3 3",
-			expr: postfix.MakeBuilder().MulMat(3, 3, 1, 0, 0, 0, 1, 0, 0, 0, 1).Build(),
-			stack: []float64{1, 2, 3},
+			name:      "multiply matrix square 3 3",
+			expr:      postfix.MakeBuilder().MulMat(3, 3, 1, 0, 0, 0, 1, 0, 0, 0, 1).Build(),
+			stack:     []float64{1, 2, 3},
 			wantStack: []float64{1, 2, 3},
 		},
 		{
-			name: "multiply matrix projection down 3 2",
-			expr: postfix.MakeBuilder().MulMat(3, 2, 1, 3, 5, 2, 4, 6).Build(),
-			stack: []float64{1, 2, 3},
+			name:      "multiply matrix projection down 3 2",
+			expr:      postfix.MakeBuilder().MulMat(3, 2, 1, 3, 5, 2, 4, 6).Build(),
+			stack:     []float64{1, 2, 3},
 			wantStack: []float64{1*1 + 2*3 + 3*5, 1*2 + 2*4 + 3*6},
 		},
 		{
-			name: "multiply matrix dot product 3 1",
-			expr: postfix.MakeBuilder().MulMat(3, 1, 4, 5, 6).Build(),
-			stack: []float64{1, 2, 3},
+			name:      "multiply matrix dot product 3 1",
+			expr:      postfix.MakeBuilder().MulMat(3, 1, 4, 5, 6).Build(),
+			stack:     []float64{1, 2, 3},
 			wantStack: []float64{1*4 + 2*5 + 3*6},
 		},
 		{
-			name: "multiply matrix arbitrary projection 4 2",
-			expr: postfix.MakeBuilder().MulMat(4, 2, 1, 3, 5, 7, 2, 4, 6, 8).Build(),
-			stack: []float64{1, 1, 1, 1},
+			name:      "multiply matrix arbitrary projection 4 2",
+			expr:      postfix.MakeBuilder().MulMat(4, 2, 1, 3, 5, 7, 2, 4, 6, 8).Build(),
+			stack:     []float64{1, 1, 1, 1},
 			wantStack: []float64{1 + 3 + 5 + 7, 2 + 4 + 6 + 8},
 		},
 		{
@@ -965,6 +977,7 @@ func TestVectorBuilderSizeValidation(t *testing.T) {
 		assertPanics(fmt.Sprintf("SubVec(%d)", invalidSize), func() { postfix.MakeBuilder().SubVec(invalidSize) })
 		assertPanics(fmt.Sprintf("MulVec(%d)", invalidSize), func() { postfix.MakeBuilder().MulVec(invalidSize) })
 		assertPanics(fmt.Sprintf("DivVec(%d)", invalidSize), func() { postfix.MakeBuilder().DivVec(invalidSize) })
+		assertPanics(fmt.Sprintf("DotVec(%d)", invalidSize), func() { postfix.MakeBuilder().DotVec(invalidSize) })
 		assertPanics(fmt.Sprintf("NegVec(%d)", invalidSize), func() { postfix.MakeBuilder().NegVec(invalidSize) })
 		assertPanics(fmt.Sprintf("InvVec(%d)", invalidSize), func() { postfix.MakeBuilder().InvVec(invalidSize) })
 		assertPanics(fmt.Sprintf("NormSqVec(%d)", invalidSize), func() { postfix.MakeBuilder().NormSqVec(invalidSize) })
@@ -1015,6 +1028,9 @@ func TestOperationString(t *testing.T) {
 	if got := postfix.Operation_PushVec.String(); got != "PushVec" {
 		t.Errorf("got %q, want %q", got, "PushVec")
 	}
+	if got := postfix.Operation_DotVec.String(); got != "DotVec" {
+		t.Errorf("got %q, want %q", got, "DotVec")
+	}
 	if got := postfix.Operation_Ipow.String(); got != "Ipow" {
 		t.Errorf("got %q, want %q", got, "Ipow")
 	}
@@ -1058,37 +1074,37 @@ func TestOperationPredicates(t *testing.T) {
 	if !postfix.Operation_AddVec.IsBinaryVec() || !postfix.Operation_DivVec.IsBinaryVec() {
 		t.Errorf("expected AddVec, DivVec to be binary vec")
 	}
-	if postfix.Operation_MulAdd.IsBinaryVec() || postfix.Operation_NegVec.IsBinaryVec() {
-		t.Errorf("expected MulAdd, NegVec to not be binary vec")
+	if postfix.Operation_MulAdd.IsBinaryVec() || postfix.Operation_DotVec.IsBinaryVec() || postfix.Operation_NegVec.IsBinaryVec() {
+		t.Errorf("expected MulAdd, DotVec, NegVec to not be binary vec")
 	}
 
 	// Unary vector: 37..38 (NegVec..InvVec)
 	if !postfix.Operation_NegVec.IsUnaryVec() || !postfix.Operation_InvVec.IsUnaryVec() {
 		t.Errorf("expected NegVec, InvVec to be unary vec")
 	}
-	if postfix.Operation_DivVec.IsUnaryVec() || postfix.Operation_NormSqVec.IsUnaryVec() {
-		t.Errorf("expected DivVec, NormSqVec to not be unary vec")
+	if postfix.Operation_DivVec.IsUnaryVec() || postfix.Operation_DotVec.IsUnaryVec() || postfix.Operation_NormSqVec.IsUnaryVec() {
+		t.Errorf("expected DivVec, DotVec, NormSqVec to not be unary vec")
 	}
 
-	// Vector reduction: 39..40 (NormSqVec..SumVec)
+	// Vector reduction: 40..41 (NormSqVec..SumVec)
 	if !postfix.Operation_NormSqVec.IsVectorReduction() || !postfix.Operation_SumVec.IsVectorReduction() {
 		t.Errorf("expected NormSqVec, SumVec to be vector reduction")
 	}
-	if postfix.Operation_InvVec.IsVectorReduction() || postfix.Operation_MulAddVec.IsVectorReduction() {
-		t.Errorf("expected InvVec, MulAddVec to not be vector reduction")
+	if postfix.Operation_InvVec.IsVectorReduction() || postfix.Operation_DotVec.IsVectorReduction() || postfix.Operation_MulAddVec.IsVectorReduction() {
+		t.Errorf("expected InvVec, DotVec, MulAddVec to not be vector reduction")
 	}
 
-	// Vector: 32..43 (PushVec..LerpVec)
-	if !postfix.Operation_PushVec.IsVector() || !postfix.Operation_AddVec.IsVector() || !postfix.Operation_LerpVec.IsVector() {
-		t.Errorf("expected PushVec, AddVec, LerpVec to be vector")
+	// Vector: 32..44 (PushVec..LerpVec)
+	if !postfix.Operation_PushVec.IsVector() || !postfix.Operation_AddVec.IsVector() || !postfix.Operation_DotVec.IsVector() || !postfix.Operation_LerpVec.IsVector() {
+		t.Errorf("expected PushVec, AddVec, DotVec, LerpVec to be vector")
 	}
 	if postfix.Operation_MulAdd.IsVector() || postfix.Operation_MulMat.IsVector() {
 		t.Errorf("expected MulAdd, MulMat to not be vector")
 	}
 
-	// Size operand: 32..43 (PushVec..LerpVec)
-	if !postfix.Operation_PushVec.HasSizeOperand() || !postfix.Operation_AddVec.HasSizeOperand() || !postfix.Operation_LerpVec.HasSizeOperand() {
-		t.Errorf("expected PushVec, AddVec, LerpVec to have size operand")
+	// Size operand: 32..44 (PushVec..LerpVec)
+	if !postfix.Operation_PushVec.HasSizeOperand() || !postfix.Operation_AddVec.HasSizeOperand() || !postfix.Operation_DotVec.HasSizeOperand() || !postfix.Operation_LerpVec.HasSizeOperand() {
+		t.Errorf("expected PushVec, AddVec, DotVec, LerpVec to have size operand")
 	}
 	if postfix.Operation_MulMat.HasSizeOperand() {
 		t.Errorf("expected MulMat to not have size operand")

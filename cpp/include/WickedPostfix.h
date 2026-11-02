@@ -88,15 +88,16 @@ typedef enum WickedPostfixOp {
   WickedPostfixOp_DivVec    = 36,
   WickedPostfixOp_NegVec    = 37,
   WickedPostfixOp_InvVec    = 38,
-  WickedPostfixOp_NormSqVec = 39,
-  WickedPostfixOp_SumVec    = 40,
-  WickedPostfixOp_MulAddVec = 41,
-  WickedPostfixOp_ScaleVec  = 42,
-  WickedPostfixOp_LerpVec   = 43,
-  WickedPostfixOp_MulMat    = 44,
-  WickedPostfixOp_Poly      = 45,
-  WickedPostfixOp_CosSin    = 46,
-  WickedPostfixOp_PanTilt   = 47,
+  WickedPostfixOp_DotVec    = 39,
+  WickedPostfixOp_NormSqVec = 40,
+  WickedPostfixOp_SumVec    = 41,
+  WickedPostfixOp_MulAddVec = 42,
+  WickedPostfixOp_ScaleVec  = 43,
+  WickedPostfixOp_LerpVec   = 44,
+  WickedPostfixOp_MulMat    = 45,
+  WickedPostfixOp_Poly      = 46,
+  WickedPostfixOp_CosSin    = 47,
+  WickedPostfixOp_PanTilt   = 48,
 } WickedPostfixOp_t;
 
 // Returns true if op is a binary scalar operation (13..18).
@@ -124,17 +125,17 @@ static inline bool WickedPostfixOpIsUnaryVec(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_NegVec && op <= WickedPostfixOp_InvVec;
 }
 
-// Returns true if op is a vector reduction operation (39..40).
+// Returns true if op is a vector reduction operation (40..41).
 static inline bool WickedPostfixOpIsVectorReduction(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_NormSqVec && op <= WickedPostfixOp_SumVec;
 }
 
-// Returns true if op is a vector operation (32..43).
+// Returns true if op is a vector operation (32..44).
 static inline bool WickedPostfixOpIsVector(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_PushVec && op <= WickedPostfixOp_LerpVec;
 }
 
-// Returns true if op takes a 1-byte size operand (32..43).
+// Returns true if op takes a 1-byte size operand (32..44).
 static inline bool WickedPostfixOpHasSizeOperand(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_PushVec && op <= WickedPostfixOp_LerpVec;
 }
@@ -408,6 +409,13 @@ class WickedPostfixWriter {
   void InvVec(uint8_t size) {
     assert(size > 0);
     EmitOp(WickedPostfixOp_InvVec);
+    EmitByte(size - 1);
+  }
+
+  // Pushes scalar dot product of two vectors (u[N] v[N] -> (u · v)).
+  void DotVec(uint8_t size) {
+    assert(size > 0);
+    EmitOp(WickedPostfixOp_DotVec);
     EmitByte(size - 1);
   }
 

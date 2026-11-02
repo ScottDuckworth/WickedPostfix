@@ -15,10 +15,13 @@ static_assert(alignof(WickedPostfixHeader) == 1);
 
 #if defined(_MSC_VER)
 #define WICKED_ALWAYS_INLINE __forceinline
+#define WICKED_RESTRICT __restrict
 #elif defined(__GNUC__) || defined(__clang__)
 #define WICKED_ALWAYS_INLINE inline __attribute__((always_inline))
+#define WICKED_RESTRICT __restrict__
 #else
 #define WICKED_ALWAYS_INLINE inline
+#define WICKED_RESTRICT
 #endif
 
 extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
@@ -62,6 +65,7 @@ extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
     case WickedPostfixOp_DivVec:    return "DivVec";
     case WickedPostfixOp_NegVec:    return "NegVec";
     case WickedPostfixOp_InvVec:    return "InvVec";
+    case WickedPostfixOp_DotVec:    return "DotVec";
     case WickedPostfixOp_NormSqVec: return "NormSqVec";
     case WickedPostfixOp_SumVec:    return "SumVec";
     case WickedPostfixOp_MulAddVec: return "MulAddVec";
@@ -271,6 +275,14 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t BinaryVec(ValidationContext& ctx) {
   return WickedEvalStatus_Ok;
 }
 
+WICKED_ALWAYS_INLINE WickedEvalStatus_t DotVec(ValidationContext& ctx) {
+  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  uint8_t size = ctx.fetch_byte() + 1;
+  if (ctx.stack_depth < int32_t(size) * 2) return WickedEvalStatus_StackUnderflow;
+  ctx.stack_depth -= (int32_t(size) * 2 - 1);
+  return WickedEvalStatus_Ok;
+}
+
 WICKED_ALWAYS_INLINE WickedEvalStatus_t UnaryVec(ValidationContext& ctx) {
   if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
   uint8_t size = ctx.fetch_byte() + 1;
@@ -407,6 +419,7 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, ui
       case WickedPostfixOp_DivVec:    status = validate::BinaryVec(ctx); break;
       case WickedPostfixOp_NegVec:
       case WickedPostfixOp_InvVec:    status = validate::UnaryVec(ctx); break;
+      case WickedPostfixOp_DotVec:    status = validate::DotVec(ctx); break;
       case WickedPostfixOp_NormSqVec:
       case WickedPostfixOp_SumVec:    status = validate::NormSqVec(ctx); break;
       case WickedPostfixOp_MulAddVec: status = validate::MulAddVec(ctx); break;
@@ -746,10 +759,31 @@ WICKED_ALWAYS_INLINE void InvVec(EvalContext& ctx) {
   }
 }
 
+WICKED_ALWAYS_INLINE void DotVec(EvalContext& ctx) {
+  uint8_t size = ctx.fetch_byte() + 1;
+  std::span<float> rhs = ctx.popv(size);
+  std::span<float> lhs = ctx.popv(size);
+  const float* WICKED_RESTRICT p_lhs = lhs.data();
+  const float* WICKED_RESTRICT p_rhs = rhs.data();
+  float s0 = 0.0f;
+  float s1 = 0.0f;
+  while (size >= 2) {
+    s0 = std::fma(p_lhs[0], p_rhs[0], s0);
+    s1 = std::fma(p_lhs[1], p_rhs[1], s1);
+    p_lhs += 2;
+    p_rhs += 2;
+    size -= 2;
+  }
+  if (size) {
+    s0 = std::fma(p_lhs[0], p_rhs[0], s0);
+  }
+  ctx.push(s0 + s1);
+}
+
 WICKED_ALWAYS_INLINE void NormSqVec(EvalContext& ctx) {
   uint8_t size = ctx.fetch_byte() + 1;
   std::span<float> v = ctx.popv(size);
-  const float* __restrict__ p = v.data();
+  const float* WICKED_RESTRICT p = v.data();
   float s0 = 0.0f;
   float s1 = 0.0f;
   while (size >= 2) {
@@ -767,7 +801,7 @@ WICKED_ALWAYS_INLINE void NormSqVec(EvalContext& ctx) {
 WICKED_ALWAYS_INLINE void SumVec(EvalContext& ctx) {
   uint8_t size = ctx.fetch_byte() + 1;
   std::span<float> v = ctx.popv(size);
-  const float* __restrict__ p = v.data();
+  const float* WICKED_RESTRICT p = v.data();
   float s0 = 0.0f;
   float s1 = 0.0f;
   while (size >= 2) {
@@ -976,6 +1010,7 @@ extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_si
       case WickedPostfixOp_DivVec:    ops::DivVec(ctx); break;
       case WickedPostfixOp_NegVec:    ops::NegVec(ctx); break;
       case WickedPostfixOp_InvVec:    ops::InvVec(ctx); break;
+      case WickedPostfixOp_DotVec:    ops::DotVec(ctx); break;
       case WickedPostfixOp_NormSqVec: ops::NormSqVec(ctx); break;
       case WickedPostfixOp_SumVec:    ops::SumVec(ctx); break;
       case WickedPostfixOp_MulAddVec: ops::MulAddVec(ctx); break;

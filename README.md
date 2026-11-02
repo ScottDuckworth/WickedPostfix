@@ -61,17 +61,18 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 | 34 | `SubVec` | `u[N] v[N]` → `(u - v)[N]` | Componentwise vector subtraction | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
 | 35 | `MulVec` | `u[N] v[N]` → `(u * v)[N]` | Componentwise vector multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
 | 36 | `DivVec` | `u[N] v[N]` → `(u / v)[N]` | Componentwise vector division | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 37 | `NegVec` | `v[N]` → `(-v)[N]` | Componentwise vector negation | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 38 | `InvVec` | `v[N]` → `(1 / v)[N]` | Componentwise vector reciprocal | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 39 | `NormSqVec` | `v[N]` → `\|\|v\|\|^2` | Squared Euclidean norm $\|v\|^2$ | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 40 | `SumVec` | `v[N]` → `sum(v)` | Sum of vector components | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 41 | `MulAddVec` | `a[N] b[N] c[N]` → `(a * b + c)[N]` | Componentwise fused multiply-add | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 42 | `ScaleVec` | `v[N] s` → `(s * v)[N]` | Vector scalar multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 43 | `LerpVec` | `t` → `((1 - t)*v0 + t*v1)[N]` | Linear interpolation between two immediate vectors for scalar $t$ | **1 byte dimension**:<br>• `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$)<br>**Followed by**: `2 * size * 4` bytes of IEEE 754 32-bit floats (interleaved component pairs: $v_{0,0}, v_{1,0}, v_{0,1}, v_{1,1}, \dots, v_{0,N-1}, v_{1,N-1}$) |
-| 44 | `MulMat` | `v[rows]` → `(v * M)[cols]` | Vector-matrix multiplication $w = v \cdot M$ with immediate matrix $M$ | **1 byte dimension**:<br>• `[1:0]`: `rows - 1` (0..3 for 1..4 input dimensions / rows in $M$)<br>• `[3:2]`: Reserved (must be 0)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions / cols in $M$)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit floats ($M$ in column-major order: column by column) |
-| 45 | `Poly` | `t` → `P(t)[cols]` | Polynomial evaluation for scalar $t$ with immediate coefficients | **1 byte dimension**:<br>• `[3:0]`: `rows - 1` (0..15 for 1..16 coefficients per column / degree + 1)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit float coefficients (degree by degree from highest order down to constant term: for each degree, column 0 to cols-1) |
-| 46 | `CosSin` | `t` → `cos(t) sin(t)` | Simultaneous scalar cosine and sine evaluation | *None* |
-| 47 | `PanTilt` | `v[3]` → `pan tilt` | Pan and tilt spherical angles from 3D line-of-sight vector $[v_0, v_1, v_2]$: $\text{pan} = \text{atan2}(v_1, v_0)$, $\text{tilt} = \text{atan2}(v_2, \sqrt{v_0^2 + v_1^2})$ | *None* |
+| 37 | `DotVec` | `u[N] v[N]` → `(u · v)` | Vector dot product | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 38 | `NegVec` | `v[N]` → `(-v)[N]` | Componentwise vector negation | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 39 | `InvVec` | `v[N]` → `(1 / v)[N]` | Componentwise vector reciprocal | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 40 | `NormSqVec` | `v[N]` → `\|\|v\|\|^2` | Squared Euclidean norm $\|v\|^2$ | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 41 | `SumVec` | `v[N]` → `sum(v)` | Sum of vector components | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 42 | `MulAddVec` | `a[N] b[N] c[N]` → `(a * b + c)[N]` | Componentwise fused multiply-add | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 43 | `ScaleVec` | `v[N] s` → `(s * v)[N]` | Vector scalar multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 44 | `LerpVec` | `t` → `((1 - t)*v0 + t*v1)[N]` | Linear interpolation between two immediate vectors for scalar $t$ | **1 byte dimension**:<br>• `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$)<br>**Followed by**: `2 * size * 4` bytes of IEEE 754 32-bit floats (interleaved component pairs: $v_{0,0}, v_{1,0}, v_{0,1}, v_{1,1}, \dots, v_{0,N-1}, v_{1,N-1}$) |
+| 45 | `MulMat` | `v[rows]` → `(v * M)[cols]` | Vector-matrix multiplication $w = v \cdot M$ with immediate matrix $M$ | **1 byte dimension**:<br>• `[1:0]`: `rows - 1` (0..3 for 1..4 input dimensions / rows in $M$)<br>• `[3:2]`: Reserved (must be 0)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions / cols in $M$)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit floats ($M$ in column-major order: column by column) |
+| 46 | `Poly` | `t` → `P(t)[cols]` | Polynomial evaluation for scalar $t$ with immediate coefficients | **1 byte dimension**:<br>• `[3:0]`: `rows - 1` (0..15 for 1..16 coefficients per column / degree + 1)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit float coefficients (degree by degree from highest order down to constant term: for each degree, column 0 to cols-1) |
+| 47 | `CosSin` | `t` → `cos(t) sin(t)` | Simultaneous scalar cosine and sine evaluation | *None* |
+| 48 | `PanTilt` | `v[3]` → `pan tilt` | Pan and tilt spherical angles from 3D line-of-sight vector $[v_0, v_1, v_2]$: $\text{pan} = \text{atan2}(v_1, v_0)$, $\text{tilt} = \text{atan2}(v_2, \sqrt{v_0^2 + v_1^2})$ | *None* |
 
 ### Embedded Memory & Acceleration Flags (C++)
 
@@ -104,19 +105,19 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 * **Library-Only Flash**: Code and constant rodata generated directly by `WickedPostfix` functions in `WickedPostfix.cc`.
 * **Transitive Flash**: Net flash delta added to a linked firmware binary with linker dead-stripping (`-Wl,--gc-sections`), capturing the library code plus all transitive standard library (`libm` / Newlib) dependencies.
 
-#### Full Profile (Default: All 47 Opcodes)
+#### Full Profile (Default: All 48 Opcodes)
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,369 B** (~3.3 KB) | **13,868 B** (~13.5 KB) |
-| **ESP32-S3** (Xtensa LX7) | **4,519 B** (~4.4 KB) | **15,440 B** (~15.1 KB) |
+| **STM32G4** (Cortex-M4F) | **3,626 B** (~3.5 KB) | **14,204 B** (~13.9 KB) |
+| **ESP32-S3** (Xtensa LX7) | **4,747 B** (~4.6 KB) | **15,776 B** (~15.4 KB) |
 
 #### Slim Profile (`-DWICKED_POSTFIX_SLIM`)
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Full |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,305 B** (~3.2 KB) | **8,764 B** (~8.6 KB) | **5,104 B (~5.0 KB)** |
-| **ESP32-S3** (Xtensa LX7) | **4,396 B** (~4.3 KB) | **10,064 B** (~9.8 KB) | **5,376 B (~5.3 KB)** |
+| **STM32G4** (Cortex-M4F) | **3,558 B** (~3.5 KB) | **9,096 B** (~8.9 KB) | **5,108 B (~5.0 KB)** |
+| **ESP32-S3** (Xtensa LX7) | **4,631 B** (~4.5 KB) | **10,444 B** (~10.2 KB) | **5,332 B (~5.2 KB)** |
 
 #### Slim Profile with CMSIS-DSP (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_CMSIS_DSP`)
 
@@ -124,7 +125,7 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Slim |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,305 B** (~3.2 KB) | **7,080 B** (~6.9 KB) | **1,684 B (~1.6 KB)** |
+| **STM32G4** (Cortex-M4F) | **3,558 B** (~3.5 KB) | **7,412 B** (~7.2 KB) | **1,684 B (~1.6 KB)** |
 
 #### Slim Profile with Hardware CORDIC (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_STM32_CORDIC`)
 
@@ -132,7 +133,7 @@ Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Slim |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,573 B** (~3.5 KB) | **3,976 B** (~3.9 KB) | **4,788 B (~4.7 KB)** |
+| **STM32G4** (Cortex-M4F) | **3,826 B** (~3.7 KB) | **4,220 B** (~4.1 KB) | **4,876 B (~4.8 KB)** |
 
 > [!NOTE]
 > **Firmware Considerations for CORDIC:**
@@ -141,15 +142,22 @@ Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5
 > * **Range & Scale Normalization:** The embedded CORDIC helper automatically maps arbitrary angles in radians to $[-1.0, 1.0)$ for $\sin$/$\cos$, and scales Cartesian inputs by $1 / \max(|x|, |y|)$ for $\text{atan2}$, requiring zero table lookups or standard library calls.
 
 #### Section Breakdown (STM32G4, Thumb-2)
-* **Bytecode Validation (`WickedPostfixValidate`)**: ~622 B `.text`
-* **Bytecode Evaluation (`WickedPostfixEvaluate`)**: ~2,124 B (Slim) / ~2,188 B (Full) `.text`
+* **Bytecode Validation (`WickedPostfixValidate`)**: ~656 B `.text`
+* **Bytecode Evaluation (`WickedPostfixEvaluate`)**: ~2,332 B (Slim) / ~2,400 B (Full) `.text`
 * **Reader & Utilities (`WickedPostfixRead`, `copy_n`)**: ~58 B `.text`
-* **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~24 B `.text` + ~477 B `.rodata`
+* **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~24 B `.text` + ~512 B `.rodata`
 
 #### Benchmark Compilation Flags
 * **STM32G4** (GNU Tools for STM32 14.3.1 / `arm-none-eabi-g++`):
   `-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -std=c++20 -Os -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections --specs=nano.specs --specs=nosys.specs -Wl,--gc-sections -lm`
 * **ESP32-S3** (Espressif Xtensa GCC 14.2.0 / `xtensa-esp32s3-elf-g++`):
   `-mlongcalls -std=c++20 -Os -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections --specs=nosys.specs -Wl,--gc-sections -lm`
+
+#### Automated Benchmark Suite
+
+The repository includes an automated, path-agnostic benchmark suite:
+* **Via CMake**: `cmake --build build --target flash_benchmark`
+* **Via Python**: `python scripts/benchmark_flash.py`
+  *(Accepts optional `--arm-cxx`, `--arm-size`, `--xtensa-cxx`, `--xtensa-size`, and `--stm32cube-fw` flags, or auto-detects toolchains dynamically from `PATH`, environment variables, and standard installation roots)*
 
 
