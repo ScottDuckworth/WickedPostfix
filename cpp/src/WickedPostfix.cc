@@ -749,21 +749,37 @@ WICKED_ALWAYS_INLINE void InvVec(EvalContext& ctx) {
 WICKED_ALWAYS_INLINE void NormSqVec(EvalContext& ctx) {
   uint8_t size = ctx.fetch_byte() + 1;
   std::span<float> v = ctx.popv(size);
-  float result = 0;
-  for (uint8_t i = 0; i < size; ++i) {
-    result = std::fma(v[i], v[i], result);
+  const float* __restrict__ p = v.data();
+  float s0 = 0.0f;
+  float s1 = 0.0f;
+  while (size >= 2) {
+    s0 = std::fma(p[0], p[0], s0);
+    s1 = std::fma(p[1], p[1], s1);
+    p += 2;
+    size -= 2;
   }
-  ctx.push(result);
+  if (size) {
+    s0 = std::fma(p[0], p[0], s0);
+  }
+  ctx.push(s0 + s1);
 }
 
 WICKED_ALWAYS_INLINE void SumVec(EvalContext& ctx) {
   uint8_t size = ctx.fetch_byte() + 1;
   std::span<float> v = ctx.popv(size);
-  float result = 0;
-  for (uint8_t i = 0; i < size; ++i) {
-    result += v[i];
+  const float* __restrict__ p = v.data();
+  float s0 = 0.0f;
+  float s1 = 0.0f;
+  while (size >= 2) {
+    s0 += p[0];
+    s1 += p[1];
+    p += 2;
+    size -= 2;
   }
-  ctx.push(result);
+  if (size) {
+    s0 += p[0];
+  }
+  ctx.push(s0 + s1);
 }
 
 WICKED_ALWAYS_INLINE void MulAddVec(EvalContext& ctx) {
