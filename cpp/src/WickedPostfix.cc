@@ -76,7 +76,6 @@ extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
     case WickedPostfixOp_MulSubVec: return "MulSubVec";
     case WickedPostfixOp_SubMulVec: return "SubMulVec";
     case WickedPostfixOp_ScaleVec:  return "ScaleVec";
-    case WickedPostfixOp_LerpVec:   return "LerpVec";
     case WickedPostfixOp_MulMat:    return "MulMat";
     case WickedPostfixOp_Poly:      return "Poly";
   }
@@ -318,19 +317,6 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t ScaleVec(ValidationContext& ctx) {
   return WickedEvalStatus_Ok;
 }
 
-WICKED_ALWAYS_INLINE WickedEvalStatus_t LerpVec(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
-  uint8_t size = ctx.fetch_byte() + 1;
-  uint16_t byte_count = uint16_t(size) * 2 * sizeof(float);
-  if (!ctx.has_bytes(byte_count)) return WickedEvalStatus_IllegalOperation;
-  ctx.skip(byte_count);
-  if (ctx.stack_depth < 1) return WickedEvalStatus_StackUnderflow;
-  ctx.stack_depth -= 1;
-  ctx.update_max(ctx.stack_depth + size);
-  ctx.stack_depth += size;
-  return WickedEvalStatus_Ok;
-}
-
 WICKED_ALWAYS_INLINE WickedEvalStatus_t MulMat(ValidationContext& ctx) {
   if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
   uint8_t arg = ctx.fetch_byte();
@@ -431,7 +417,6 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, ui
       case WickedPostfixOp_MulSubVec:
       case WickedPostfixOp_SubMulVec: status = validate::MulAddVec(ctx); break;
       case WickedPostfixOp_ScaleVec:  status = validate::ScaleVec(ctx); break;
-      case WickedPostfixOp_LerpVec:   status = validate::LerpVec(ctx); break;
       case WickedPostfixOp_MulMat:    status = validate::MulMat(ctx); break;
       case WickedPostfixOp_Poly:      status = validate::Poly(ctx); break;
       default:
@@ -872,17 +857,6 @@ WICKED_ALWAYS_INLINE void ScaleVec(EvalContext& ctx) {
   }
 }
 
-WICKED_ALWAYS_INLINE void LerpVec(EvalContext& ctx) {
-  uint8_t size = ctx.fetch_byte() + 1;
-  float t = ctx.pop();
-  std::span<float> result = ctx.allocv(size);
-  for (uint8_t i = 0; i < size; ++i) {
-    float v0 = ctx.fetch_float();
-    float v1 = ctx.fetch_float();
-    result[i] = std::fma(t, v1 - v0, v0);
-  }
-}
-
 WICKED_ALWAYS_INLINE void MulMat(EvalContext& ctx) {
   uint8_t arg = ctx.fetch_byte();
   uint8_t rows = (arg & 0x03) + 1;
@@ -1056,7 +1030,6 @@ extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_si
       case WickedPostfixOp_MulSubVec: ops::MulSubVec(ctx); break;
       case WickedPostfixOp_SubMulVec: ops::SubMulVec(ctx); break;
       case WickedPostfixOp_ScaleVec:  ops::ScaleVec(ctx); break;
-      case WickedPostfixOp_LerpVec:   ops::LerpVec(ctx); break;
       case WickedPostfixOp_MulMat:    ops::MulMat(ctx); break;
       case WickedPostfixOp_Poly:      ops::Poly(ctx); break;
       default:

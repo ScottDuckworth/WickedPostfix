@@ -99,9 +99,8 @@ typedef enum WickedPostfixOp {
   WickedPostfixOp_MulSubVec = 47,
   WickedPostfixOp_SubMulVec = 48,
   WickedPostfixOp_ScaleVec  = 49,
-  WickedPostfixOp_LerpVec   = 50,
-  WickedPostfixOp_MulMat    = 51,
-  WickedPostfixOp_Poly      = 52,
+  WickedPostfixOp_MulMat    = 50,
+  WickedPostfixOp_Poly      = 51,
 } WickedPostfixOp_t;
 
 // Returns the string representation of an opcode.
@@ -429,25 +428,6 @@ class WickedPostfixWriter {
     assert(size > 0);
     EmitOp(WickedPostfixOp_ScaleVec);
     EmitByte(size - 1);
-  }
-
-  // Linear interpolation between two immediate vectors for scalar t (t -> ((1 - t)*v0 + t*v1)[N]).
-  // Operand constraints:
-  //   - v0.size() == v1.size()
-  //   - size: 1 to 255
-  void LerpVec(std::span<const float> v0, std::span<const float> v1) {
-    assert(v0.size() == v1.size());
-    assert(v0.size() >= 1 && v0.size() <= 255);
-    EmitOp(WickedPostfixOp_LerpVec);
-    EmitByte(static_cast<uint8_t>(v0.size() - 1));
-    for (size_t i = 0; i < v0.size(); ++i) {
-      EmitFloat(v0[i]);
-      EmitFloat(v1[i]);
-    }
-  }
-
-  void LerpVec(std::initializer_list<float> v0, std::initializer_list<float> v1) {
-    LerpVec(std::span<const float>(v0), std::span<const float>(v1));
   }
 
   // Vector-matrix multiplication w = v * M with immediate column-major matrix M (v[rows] -> (v * M)[cols]).

@@ -80,9 +80,8 @@ const (
 	Operation_MulSubVec  Operation = 47
 	Operation_SubMulVec  Operation = 48
 	Operation_ScaleVec   Operation = 49
-	Operation_LerpVec    Operation = 50
-	Operation_MulMat     Operation = 51
-	Operation_Poly       Operation = 52
+	Operation_MulMat     Operation = 50
+	Operation_Poly       Operation = 51
 )
 
 // Expression represents an immutable bytecode sequence of postfix operations.
@@ -198,8 +197,6 @@ func (op Operation) String() string {
 		return "SubMulVec"
 	case Operation_ScaleVec:
 		return "ScaleVec"
-	case Operation_LerpVec:
-		return "LerpVec"
 	case Operation_MulMat:
 		return "MulMat"
 	case Operation_Poly:
@@ -641,23 +638,6 @@ func (b *Builder) ScaleVec(size int) *Builder {
 	return b
 }
 
-// LerpVec pops scalar t and interpolates between immediate vectors v0 and v1 (t -> ((1 - t)*v0 + t*v1)[N]).
-func (b *Builder) LerpVec(v0, v1 []float64) *Builder {
-	if len(v0) != len(v1) {
-		panic(fmt.Sprintf("LerpVec vectors must have same length: len(v0)=%d, len(v1)=%d", len(v0), len(v1)))
-	}
-	size := len(v0)
-	if size < 1 || size > 255 {
-		panic(fmt.Sprintf("LerpVec size (%d) must be in range [1, 255]", size))
-	}
-	b.expr.Prog = append(b.expr.Prog, uint8(Operation_LerpVec), uint8(size-1))
-	for i := range size {
-		b.expr.Prog = binary.LittleEndian.AppendUint32(b.expr.Prog, math.Float32bits(float32(v0[i])))
-		b.expr.Prog = binary.LittleEndian.AppendUint32(b.expr.Prog, math.Float32bits(float32(v1[i])))
-	}
-	return b
-}
-
 func packMulMat(rows, cols int) uint8 {
 	if rows < 1 || rows > 4 {
 		panic(fmt.Sprintf("MulMat rows (%d) must be in range [1, 4]", rows))
@@ -970,22 +950,6 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 				return 0, 0, nil, ErrStackUnderflow
 			}
 			stackLen -= 1
-		case Operation_LerpVec:
-			if avail() < 1 {
-				return 0, 0, nil, ErrIllegalOperation
-			}
-			size := fetchByte() + 1
-			byteCount := size * 2 * 4
-			if avail() < byteCount {
-				return 0, 0, nil, ErrIllegalOperation
-			}
-			pc += byteCount
-			if stackLen < 1 {
-				return 0, 0, nil, ErrStackUnderflow
-			}
-			stackLen -= 1
-			updateMax(stackLen + size)
-			stackLen += size
 		case Operation_MulMat:
 			if avail() < 1 {
 				return 0, 0, nil, ErrIllegalOperation
@@ -1330,14 +1294,6 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 			start := len(stack) - size
 			for i := start; i < len(stack); i++ {
 				stack[i] *= scalar
-			}
-		case Operation_LerpVec:
-			size := int(fetchByte()) + 1
-			t := pop()
-			for range size {
-				v0 := fetchFloat()
-				v1 := fetchFloat()
-				stack = append(stack, (1-t)*v0+t*v1)
 			}
 		case Operation_MulMat:
 			arg := fetchByte()

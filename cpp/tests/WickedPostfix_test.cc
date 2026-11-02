@@ -1531,50 +1531,6 @@ TEST(EvalTest, ScaleVecIntUnderflow) {
   EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_IllegalOperation);
 }
 
-TEST(EvalTest, LerpVec) {
-  WickedPostfixWriter writer;
-  writer.LerpVec({2.0f, 3.0f, 4.0f}, {6.0f, 7.0f, 8.0f});
-  auto buffer = writer.Write();
-
-  TestEval eval(12, {0, 0.25f});
-  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
-  EXPECT_EQ(WickedPostfixValidate(&eval, 4), WickedEvalStatus_Ok);
-  WickedPostfixEvaluate(&eval);
-  EXPECT_THAT(eval.stack(), ElementsAre(0, 3, 4, 5));
-}
-
-TEST(EvalTest, LerpVecStackUnderflow) {
-  WickedPostfixWriter writer;
-  writer.LerpVec({2.0f, 3.0f, 4.0f}, {6.0f, 7.0f, 8.0f});
-  auto buffer = writer.Write();
-
-  TestEval eval(8, {});
-  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
-  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_StackUnderflow);
-}
-
-TEST(EvalTest, LerpVecIntUnderflow) {
-  WickedPostfixWriter writer;
-  writer.EmitOp(WickedPostfixOp_LerpVec);
-  auto buffer = writer.Write();
-
-  TestEval eval(12, {0, 0.25f});
-  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
-  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_IllegalOperation);
-}
-
-TEST(EvalTest, LerpVecDataUnderflow) {
-  WickedPostfixWriter writer;
-  writer.EmitOp(WickedPostfixOp_LerpVec);
-  writer.EmitByte(2);  // size = 3, needs 6 floats = 24 bytes
-  writer.EmitFloat(1.0f);  // only 1 float provided
-  auto buffer = writer.Write();
-
-  TestEval eval(12, {0, 0.25f});
-  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
-  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_IllegalOperation);
-}
-
 TEST(EvalTest, MulMat) {
   WickedPostfixWriter writer;
   writer.MulMat(3, 4, {

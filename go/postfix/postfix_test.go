@@ -807,36 +807,6 @@ func TestEvalPostfixExpression(t *testing.T) {
 			wantErr: postfix.ErrStackUnderflow,
 		},
 		{
-			name:      "lerp 1d 0",
-			expr:      postfix.MakeBuilder().LerpVec([]float64{1}, []float64{2}).Build(),
-			stack:     []float64{0},
-			wantStack: []float64{1},
-		},
-		{
-			name:      "lerp 1d 1",
-			expr:      postfix.MakeBuilder().LerpVec([]float64{1}, []float64{2}).Build(),
-			stack:     []float64{1},
-			wantStack: []float64{2},
-		},
-		{
-			name:      "lerp 1d 0.5",
-			expr:      postfix.MakeBuilder().LerpVec([]float64{1}, []float64{2}).Build(),
-			stack:     []float64{0.5},
-			wantStack: []float64{1.5},
-		},
-		{
-			name:      "lerp 3d 0.5",
-			expr:      postfix.MakeBuilder().LerpVec([]float64{1, 2, 3}, []float64{4, 5, 6}).Build(),
-			stack:     []float64{0.5},
-			wantStack: []float64{2.5, 3.5, 4.5},
-		},
-		{
-			name:    "lerp underflow",
-			expr:    postfix.MakeBuilder().LerpVec([]float64{1}, []float64{2}).Build(),
-			stack:   []float64{},
-			wantErr: postfix.ErrStackUnderflow,
-		},
-		{
 			name:  "multiply matrix 3 4",
 			expr:  postfix.MakeBuilder().MulMat(3, 4, 1, 5, 9, 2, 6, 10, 3, 7, 11, 4, 8, 12).Build(),
 			stack: []float64{1, 2, 3},
@@ -1034,8 +1004,6 @@ func TestVectorBuilderSizeValidation(t *testing.T) {
 		assertPanics(fmt.Sprintf("ScaleVec(%d)", invalidSize), func() { postfix.MakeBuilder().ScaleVec(invalidSize) })
 	}
 
-	assertPanics("LerpVec mismatch", func() { postfix.MakeBuilder().LerpVec([]float64{1}, []float64{1, 2}) })
-	assertPanics("LerpVec empty", func() { postfix.MakeBuilder().LerpVec([]float64{}, []float64{}) })
 	assertPanics("MulMat row 0", func() { postfix.MakeBuilder().MulMat(0, 3, 1, 2, 3) })
 	assertPanics("MulMat row 5", func() { postfix.MakeBuilder().MulMat(5, 1) })
 	assertPanics("MulMat col 0", func() { postfix.MakeBuilder().MulMat(1, 0) })
