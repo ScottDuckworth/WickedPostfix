@@ -452,6 +452,24 @@ def main():
         print(f"  * WickedPostfixRead/copy_n: ~{read_sz} B")
         print(f"  * OpToString / Switch:      ~{str_sz} B")
 
+    # Math helper functions in WickedUtil.hh
+    target_key = "stm32_cordic" if "stm32_cordic" in results else ("stm32_fast_exp" if "stm32_fast_exp" in results else None)
+    if target_key:
+        secs = results[target_key]["sections"]
+        fast_log_sz = sum(v for k, v in secs.items() if "wicked_fast_log" in k)
+        fast_exp_sz = sum(v for k, v in secs.items() if "wicked_fast_exp" in k)
+        cordic_sincos_sz = sum(v for k, v in secs.items() if "wicked_cordic_sincos" in k)
+        cordic_atan2_sz = sum(v for k, v in secs.items() if "wicked_cordic_atan2" in k)
+        print("\nHelper Math Functions (WickedUtil.hh, Thumb-2):")
+        if fast_exp_sz:
+            print(f"  * wicked_fast_expf:         ~{fast_exp_sz} B")
+        if fast_log_sz:
+            print(f"  * wicked_fast_logf:         ~{fast_log_sz} B")
+        if cordic_sincos_sz:
+            print(f"  * wicked_cordic_sincosf:    ~{cordic_sincos_sz} B")
+        if cordic_atan2_sz:
+            print(f"  * wicked_cordic_atan2f:     ~{cordic_atan2_sz} B")
+
     print_markdown_tables(results)
     return results
 

@@ -152,6 +152,12 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 * **Reader & Utilities (`WickedPostfixRead`, `copy_n`)**: ~58 B `.text`
 * **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~561 B `.rodata`
 
+#### Helper Math Functions (`WickedUtil.hh`, Thumb-2)
+* **Fast Exponential (`wicked_fast_expf`)**: ~200 B `.text`
+* **Fast Natural Logarithm (`wicked_fast_logf`)**: ~220 B `.text`
+* **Hardware CORDIC Sine/Cosine (`wicked_cordic_sincosf`)**: ~140 B `.text`
+* **Hardware CORDIC Arctangent (`wicked_cordic_atan2f`)**: ~116 B `.text`
+
 #### Benchmark Compilation Flags
 * **STM32G4** (GNU Tools for STM32 14.3.1 / `arm-none-eabi-g++`):
   `-mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -std=c++20 -Os -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections --specs=nano.specs --specs=nosys.specs -Wl,--gc-sections -lm`
