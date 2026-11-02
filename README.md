@@ -101,6 +101,14 @@ These flags **do not disable any opcodes**; all operations (`Sin`, `Cos`, `CosSi
   * `WICKED_CUSTOM_SINCOS(t, s, c)`
   * `WICKED_CUSTOM_ATAN2(y, x)`
 
+#### 3. Exponential Math Optimization & Fast Math Backends
+* **Default Case (`Pow` Derivation)**: In the standard Full profile, `Pow` is mathematically derived from `Exp` and `Ln` ($x^y = \exp(y \ln x)$). This dead-strips Newlib's large `powf` function from `libm.a` by default without disabling any opcodes.
+* **`-DWICKED_USE_FAST_EXP_MATH`**: Enables lightweight, table-less IEEE-754 bit-trick and Horner polynomial approximations for `Exp`, `Ln`, and `Pow` with $< 5 \times 10^{-6}$ relative error across the entire float range. Completely eliminates `libm` exponential dependencies, saving **~0.9 KB** of flash across STM32 and ESP32.
+* **Custom Overrides**: Pluggable hooks allow binding vendor DSP or hardware math accelerators:
+  * `WICKED_CUSTOM_EXP(x)`
+  * `WICKED_CUSTOM_LN(x)`
+  * `WICKED_CUSTOM_POW(x, y)`
+
 ### Flash Memory Footprint (Reading & Evaluation Suite)
 
 The tables below report measured flash memory consumption compiled with `-Os` for the execution and reading suite (`WickedPostfixValidate`, `WickedPostfixEvaluate`, `WickedPostfixRead`, and `WickedPostfixOpToString`), excluding `WickedPostfixWriter`.
@@ -112,8 +120,21 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,743 B** (~3.7 KB) | **12,512 B** (~12.2 KB) |
-| **ESP32-S3** (Xtensa LX7) | **4,939 B** (~4.8 KB) | **13,908 B** (~13.6 KB) |
+| **STM32G4** (Cortex-M4F) | **3,899 B** (~3.8 KB) | **12,576 B** (~12.3 KB) |
+| **ESP32-S3** (Xtensa LX7) | **5,151 B** (~5.0 KB) | **12,512 B** (~12.2 KB) |
+
+#### Full Profile with Fast Exp Math (`-DWICKED_USE_FAST_EXP_MATH`)
+
+| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default Full |
+| :--- | :---: | :---: | :---: |
+| **STM32G4** (Cortex-M4F) | **4,319 B** (~4.2 KB) | **11,648 B** (~11.4 KB) | **928 B (~0.9 KB)** |
+| **ESP32-S3** (Xtensa LX7) | **5,639 B** (~5.5 KB) | **11,616 B** (~11.3 KB) | **896 B (~0.9 KB)** |
+
+#### Full Profile with Fast Exp Math + Hardware CORDIC (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_STM32_CORDIC`)
+
+| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default Full |
+| :--- | :---: | :---: | :---: |
+| **STM32G4** (Cortex-M4F) | **4,583 B** (~4.5 KB) | **6,916 B** (~6.8 KB) | **5,660 B (~5.5 KB)** |
 
 #### Slim Profile (`-DWICKED_POSTFIX_SLIM`)
 

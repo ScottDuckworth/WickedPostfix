@@ -693,15 +693,15 @@ WICKED_ALWAYS_INLINE void Ipow(EvalContext& ctx) {
 #ifndef WICKED_POSTFIX_NO_EXP_MATH
 WICKED_ALWAYS_INLINE void Pow(EvalContext& ctx) {
   float b = ctx.pop();
-  ctx.peek() = std::pow(ctx.peek(), b);
+  ctx.peek() = wicked_powf(ctx.peek(), b);
 }
 
 WICKED_ALWAYS_INLINE void Exp(EvalContext& ctx) {
-  ctx.peek() = std::exp(ctx.peek());
+  ctx.peek() = wicked_expf(ctx.peek());
 }
 
 WICKED_ALWAYS_INLINE void Ln(EvalContext& ctx) {
-  ctx.peek() = std::log(ctx.peek());
+  ctx.peek() = wicked_logf(ctx.peek());
 }
 #endif
 

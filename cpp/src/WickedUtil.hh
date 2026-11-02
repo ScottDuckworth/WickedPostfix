@@ -1,6 +1,9 @@
 #pragma once
 
 #include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <limits>
 
 #if defined(WICKED_USE_STM32_CORDIC)
 #if defined(CORDIC)
@@ -154,6 +157,140 @@ static inline void wicked_sincosf(float t, float* s, float* c) {
 static inline float wicked_atan2f(float y, float x) {
   return WICKED_CUSTOM_ATAN2(y, x);
 }
+
+// --- FAST EXPONENTIAL MATH IMPLEMENTATIONS ---
+
+// Tableless IEEE-754 bit-trick + Horner polynomial approximation of expf(x).
+// Precision: < 5e-6 relative error across the entire float range.
+static inline float wicked_fast_expf(float x) {
+  if (std::isnan(x)) return x;
+  if (x > 88.722839f) return std::numeric_limits<float>::infinity();
+  if (x < -87.33654f) return 0.0f;
+
+  // 2^(x * log2(e)) = 2^(k + f)
+  constexpr float LOG2E = 1.4426950408889634f;
+  float z = x * LOG2E;
+  int32_t k = static_cast<int32_t>(std::floor(z + 0.5f));
+  float f = z - static_cast<float>(k);
+
+  // Polynomial approximation of 2^f for f in [-0.5, 0.5]
+  // 2^f ≈ 1 + a1*f + a2*f^2 + a3*f^3 + a4*f^4 + a5*f^5
+  constexpr float a1 = 0.69314718f;
+  constexpr float a2 = 0.24022651f;
+  constexpr float a3 = 0.05550411f;
+  constexpr float a4 = 0.00961813f;
+  constexpr float a5 = 0.00133336f;
+  float poly = 1.0f + f * (a1 + f * (a2 + f * (a3 + f * (a4 + f * a5))));
+
+  // Synthesize 2^k via IEEE-754 exponent field
+  uint32_t k_bits = static_cast<uint32_t>(k + 127) << 23;
+  float p2k;
+  std::memcpy(&p2k, &k_bits, sizeof(float));
+  return p2k * poly;
+}
+
+// Tableless IEEE-754 bit-trick + Horner polynomial approximation of logf(x).
+// Precision: < 3e-6 relative error across the entire positive float range.
+static inline float wicked_fast_logf(float x) {
+  if (x <= 0.0f) {
+    if (x == 0.0f) return -std::numeric_limits<float>::infinity();
+    return std::numeric_limits<float>::quiet_NaN();
+  }
+
+  int32_t exp = 0;
+  // Handle subnormal floats
+  if (x < 1.17549435e-38f) {
+    x *= 16777216.0f;  // 2^24
+    exp -= 24;
+  }
+
+  uint32_t bits;
+  std::memcpy(&bits, &x, sizeof(float));
+  exp += static_cast<int32_t>(bits >> 23) - 127;
+  bits = (bits & 0x007FFFFFu) | 0x3F800000u;
+  float m;
+  std::memcpy(&m, &bits, sizeof(float));
+
+  // Range reduce m from [1.0, 2.0) to [1/sqrt(2), sqrt(2)) ≈ [0.7071, 1.4142]
+  if (m > 1.41421356f) {
+    m *= 0.5f;
+    exp += 1;
+  }
+
+  // u = (m - 1) / (m + 1), |u| <= 0.17157
+  float u = (m - 1.0f) / (m + 1.0f);
+  float u2 = u * u;
+  // ln(m) = 2 * u * (1 + u^2/3 + u^4/5 + u^6/7)
+  float log_m = 2.0f * u * (1.0f + u2 * (0.333333333f + u2 * (0.2f + u2 * 0.142857143f)));
+
+  constexpr float LN2 = 0.6931471805599453f;
+  return log_m + static_cast<float>(exp) * LN2;
+}
+
+// Tableless fast powf(x, y) = fast_exp(y * fast_log(x)) with full edge cases.
+static inline float wicked_fast_powf(float x, float y) {
+  if (y == 0.0f) {
+    return 1.0f;
+  }
+  if (x == 0.0f) {
+    return (y > 0.0f) ? 0.0f : std::numeric_limits<float>::infinity();
+  }
+  if (x < 0.0f) {
+    float intpart;
+    if (std::modf(y, &intpart) == 0.0f) {
+      float res = wicked_fast_expf(y * wicked_fast_logf(-x));
+      return (static_cast<int64_t>(intpart) & 1) ? -res : res;
+    }
+    return std::numeric_limits<float>::quiet_NaN();
+  }
+  return wicked_fast_expf(y * wicked_fast_logf(x));
+}
+
+// --- EXPONENTIAL / POWER MACRO DISPATCH ---
+
+#if defined(WICKED_CUSTOM_EXP)
+#define wicked_expf(x) WICKED_CUSTOM_EXP(x)
+#elif defined(WICKED_USE_FAST_EXP_MATH)
+#define wicked_expf(x) wicked_fast_expf(x)
+#else
+#define wicked_expf(x) std::exp(x)
+#endif
+
+#if defined(WICKED_CUSTOM_LN)
+#define wicked_logf(x) WICKED_CUSTOM_LN(x)
+#elif defined(WICKED_USE_FAST_EXP_MATH)
+#define wicked_logf(x) wicked_fast_logf(x)
+#else
+#define wicked_logf(x) std::log(x)
+#endif
+
+// Derived powf: x^y = exp(y * ln(x))
+// Dead-strips Newlib's heavy powf from libm while dispatching through wicked_expf / wicked_logf.
+static inline float wicked_derived_powf(float x, float y) {
+  if (y == 0.0f) {
+    return 1.0f;
+  }
+  if (x == 0.0f) {
+    return (y > 0.0f) ? 0.0f : std::numeric_limits<float>::infinity();
+  }
+  if (x < 0.0f) {
+    float intpart;
+    if (std::modf(y, &intpart) == 0.0f) {
+      float res = wicked_expf(y * wicked_logf(-x));
+      return (static_cast<int64_t>(intpart) & 1) ? -res : res;
+    }
+    return std::numeric_limits<float>::quiet_NaN();
+  }
+  return wicked_expf(y * wicked_logf(x));
+}
+
+#if defined(WICKED_CUSTOM_POW)
+#define wicked_powf(x, y) WICKED_CUSTOM_POW(x, y)
+#elif defined(WICKED_USE_FAST_EXP_MATH)
+#define wicked_powf(x, y) wicked_fast_powf(x, y)
+#else
+#define wicked_powf(x, y) wicked_derived_powf(x, y)
+#endif
 
 // Return the smallest index i in [first, last) at which pred(i) is true.
 // Returns last if not found.

@@ -1,4 +1,5 @@
 #include "WickedPostfix.h"
+#include "../src/WickedUtil.hh"
 
 #include <cmath>
 #include <span>
@@ -8,6 +9,7 @@
 
 using ::testing::ElementsAre;
 using ::testing::FloatEq;
+using ::testing::FloatNear;
 
 namespace {
 
@@ -623,6 +625,61 @@ TEST(EvalTest, PowStackUnderflow) {
   EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_StackUnderflow);
 }
 
+TEST(EvalTest, PowEdgeCases) {
+  WickedPostfixWriter writer;
+  writer.Pow();
+  auto buffer = writer.Write();
+
+  // 0^0 = 1
+  {
+    TestEval eval(4, {0.0f, 0.0f});
+    EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+    EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+    WickedPostfixEvaluate(&eval);
+    EXPECT_THAT(eval.stack(), ElementsAre(1.0f));
+  }
+  // 0^3 = 0
+  {
+    TestEval eval(4, {0.0f, 3.0f});
+    EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+    EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+    WickedPostfixEvaluate(&eval);
+    EXPECT_THAT(eval.stack(), ElementsAre(0.0f));
+  }
+  // 5^0 = 1
+  {
+    TestEval eval(4, {5.0f, 0.0f});
+    EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+    EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+    WickedPostfixEvaluate(&eval);
+    EXPECT_THAT(eval.stack(), ElementsAre(1.0f));
+  }
+  // 9^0.5 = 3
+  {
+    TestEval eval(4, {9.0f, 0.5f});
+    EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+    EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+    WickedPostfixEvaluate(&eval);
+    EXPECT_THAT(eval.stack(), ElementsAre(FloatNear(3.0f, 1e-5f)));
+  }
+  // (-2)^3 = -8
+  {
+    TestEval eval(4, {-2.0f, 3.0f});
+    EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+    EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+    WickedPostfixEvaluate(&eval);
+    EXPECT_THAT(eval.stack(), ElementsAre(FloatNear(-8.0f, 1e-5f)));
+  }
+  // (-2)^2 = 4
+  {
+    TestEval eval(4, {-2.0f, 2.0f});
+    EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+    EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+    WickedPostfixEvaluate(&eval);
+    EXPECT_THAT(eval.stack(), ElementsAre(FloatNear(4.0f, 1e-5f)));
+  }
+}
+
 TEST(EvalTest, Atan2) {
   WickedPostfixWriter writer;
   writer.Atan2();
@@ -775,6 +832,57 @@ TEST(EvalTest, LnStackUnderflow) {
   TestEval eval(4, {});
   EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
   EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_StackUnderflow);
+}
+
+TEST(EvalTest, ExpEdgeCases) {
+  WickedPostfixWriter writer;
+  writer.Exp();
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {0.0f});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_THAT(eval.stack(), ElementsAre(1.0f));
+}
+
+TEST(EvalTest, LnEdgeCases) {
+  WickedPostfixWriter writer;
+  writer.Ln();
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {1.0f});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_THAT(eval.stack(), ElementsAre(0.0f));
+}
+
+TEST(EvalTest, FastExpMathDirect) {
+  // Direct precision verification of wicked_fast_expf across [-10, 10]
+  for (float x = -10.0f; x <= 10.0f; x += 0.25f) {
+    float expected = std::exp(x);
+    float actual = wicked_fast_expf(x);
+    float rel_err = std::abs((actual - expected) / expected);
+    EXPECT_LT(rel_err, 5e-5f) << "wicked_fast_expf mismatch at x=" << x;
+  }
+
+  // Direct precision verification of wicked_fast_logf across [0.01, 1000]
+  for (float x = 0.05f; x <= 100.0f; x *= 1.5f) {
+    float expected = std::log(x);
+    float actual = wicked_fast_logf(x);
+    float abs_err = std::abs(actual - expected);
+    EXPECT_LT(abs_err, 5e-5f) << "wicked_fast_logf mismatch at x=" << x;
+  }
+
+  // Direct precision verification of wicked_fast_powf
+  EXPECT_NEAR(wicked_fast_powf(2.0f, 3.0f), 8.0f, 1e-4f);
+  EXPECT_NEAR(wicked_fast_powf(9.0f, 0.5f), 3.0f, 1e-4f);
+  EXPECT_EQ(wicked_fast_powf(0.0f, 0.0f), 1.0f);
+  EXPECT_EQ(wicked_fast_powf(0.0f, 4.0f), 0.0f);
+  EXPECT_EQ(wicked_fast_powf(5.0f, 0.0f), 1.0f);
+  EXPECT_NEAR(wicked_fast_powf(-2.0f, 3.0f), -8.0f, 1e-4f);
+  EXPECT_NEAR(wicked_fast_powf(-2.0f, 2.0f), 4.0f, 1e-4f);
 }
 
 TEST(EvalTest, Sin) {

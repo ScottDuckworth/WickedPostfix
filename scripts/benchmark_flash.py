@@ -352,6 +352,15 @@ def main():
                 "ldflags": ["--specs=nano.specs", "--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
             })
             configs.append({
+                "key": "stm32_full_fast_exp",
+                "name": "STM32G4 Full + Fast Exp",
+                "cxx": arm_cxx, "size": arm_size, "base_flash": arm_base_flash,
+                "cflags": ["-mcpu=cortex-m4", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard", "-mthumb",
+                           "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti", "-ffunction-sections", "-fdata-sections",
+                           "-DWICKED_USE_FAST_EXP_MATH", f"-I{include_dir}"],
+                "ldflags": ["--specs=nano.specs", "--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
+            })
+            configs.append({
                 "key": "stm32_slim",
                 "name": "STM32G4 Slim",
                 "cxx": arm_cxx, "size": arm_size, "base_flash": arm_base_flash,
@@ -393,6 +402,16 @@ def main():
                                    f"-I{include_dir}", f"-I{stm32g4_dev_inc}", f"-I{cmsis_core_inc}"],
                         "ldflags": ["--specs=nano.specs", "--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
                     })
+                    configs.append({
+                        "key": "stm32_full_cordic_fast_exp",
+                        "name": "STM32G4 Full + Fast Exp + CORDIC",
+                        "cxx": arm_cxx, "size": arm_size, "base_flash": arm_base_flash,
+                        "cflags": ["-mcpu=cortex-m4", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard", "-mthumb",
+                                   "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti", "-ffunction-sections", "-fdata-sections",
+                                   "-DWICKED_USE_FAST_EXP_MATH", "-DWICKED_USE_STM32_CORDIC", "-DSTM32G474xx",
+                                   f"-I{include_dir}", f"-I{stm32g4_dev_inc}", f"-I{cmsis_core_inc}"],
+                        "ldflags": ["--specs=nano.specs", "--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
+                    })
                 else:
                     print(f"Note: STM32G4 device CMSIS headers not found in {cube_fw}; skipping CORDIC benchmark.")
             else:
@@ -405,6 +424,14 @@ def main():
                 "cxx": xtensa_cxx, "size": xtensa_size, "base_flash": xt_base_flash,
                 "cflags": ["-mlongcalls", "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti",
                            "-ffunction-sections", "-fdata-sections", f"-I{include_dir}"],
+                "ldflags": ["--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
+            })
+            configs.append({
+                "key": "esp32s3_full_fast_exp",
+                "name": "ESP32-S3 Full + Fast Exp",
+                "cxx": xtensa_cxx, "size": xtensa_size, "base_flash": xt_base_flash,
+                "cflags": ["-mlongcalls", "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti",
+                           "-ffunction-sections", "-fdata-sections", "-DWICKED_USE_FAST_EXP_MATH", f"-I{include_dir}"],
                 "ldflags": ["--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
             })
             configs.append({

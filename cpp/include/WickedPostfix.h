@@ -10,6 +10,13 @@
 // - WICKED_POSTFIX_SLIM: disables non-core exponential/power math (Pow, Exp, Ln)
 //   to minimize flash on microcontrollers.
 // - WICKED_POSTFIX_NO_EXP_MATH: disables Pow, Exp, Ln (eliminates powf, expf, logf).
+// - WICKED_USE_FAST_EXP_MATH: enables compact IEEE-754 bit-trick and Horner polynomial
+//   approximations for Exp, Ln, and Pow, eliminating Newlib libm exponential dependencies
+//   while retaining full opcode functionality.
+// - Custom overrides: WICKED_CUSTOM_EXP(x), WICKED_CUSTOM_LN(x), WICKED_CUSTOM_POW(x, y)
+//   allow binding custom vendor DSP or hardware math accelerators.
+// - Note: In the default Full profile, Pow is derived from Exp and Ln (x^y = exp(y * ln(x))),
+//   dead-stripping Newlib's heavy powf from libm by default.
 #if defined(WICKED_POSTFIX_SLIM)
 #ifndef WICKED_POSTFIX_NO_EXP_MATH
 #define WICKED_POSTFIX_NO_EXP_MATH
