@@ -3,8 +3,8 @@
 benchmark_flash.py - Automated Flash Footprint Benchmark for WickedPostfix
 
 Measures library-only and transitive flash memory footprints across target embedded
-architectures (STM32G4 / Cortex-M4F and ESP32-S3 / Xtensa LX7) for Full, Slim,
-CMSIS-DSP, and CORDIC configurations.
+architectures (STM32G4 / Cortex-M4F and ESP32-S3 / Xtensa LX7) for Default,
+Fast Exp Math, CMSIS-DSP, and CORDIC configurations.
 
 All compiler paths and platform SDKs are discovered dynamically or configurable via CLI flags:
   --arm-cxx, --arm-size
@@ -75,10 +75,8 @@ def discover_arm_toolchain(cli_cxx, cli_size):
         home = os.path.expanduser("~")
         bin_name = f"arm-none-eabi-g++{BIN_EXT}"
         patterns = [
-            # Windows standard installation locations
             f"C:/ST/STM32CubeIDE*/**/tools/bin/{bin_name}",
             f"C:/Program Files*/**/{bin_name}",
-            # Linux / macOS standard installation locations
             f"/opt/st/stm32cubeide*/**/tools/bin/{bin_name}",
             f"/opt/gcc-arm-none-eabi*/**/bin/{bin_name}",
             f"/opt/arm*/**/bin/{bin_name}",
@@ -101,13 +99,10 @@ def discover_xtensa_toolchain(cli_cxx, cli_size):
         home = os.path.expanduser("~")
         bin_name = f"xtensa-esp32s3-elf-g++{BIN_EXT}"
         patterns = [
-            # Windows standard installation locations
-            f"C:/Espressif/tools/xtensa-esp-elf/**/bin/{bin_name}",
-            # Default ESP-IDF install location on both Linux & Windows (~/.espressif)
-            os.path.join(home, f".espressif/tools/xtensa-esp-elf/**/bin/{bin_name}"),
-            # Linux common installation locations
-            f"/opt/espressif/tools/xtensa-esp-elf/**/bin/{bin_name}",
-            f"/opt/xtensa-esp-elf/**/bin/{bin_name}",
+            f"C:/Espressif/tools/xtensa-esp-elf*/**/bin/{bin_name}",
+            f"C:/.espressif/tools/xtensa-esp-elf*/**/bin/{bin_name}",
+            f"{home}/.espressif/tools/xtensa-esp-elf*/**/bin/{bin_name}",
+            f"/opt/espressif/tools/xtensa-esp-elf*/**/bin/{bin_name}",
         ]
         cxx = find_file_recursive(patterns)
 
@@ -118,147 +113,160 @@ def discover_xtensa_toolchain(cli_cxx, cli_size):
             size = candidate
     return cxx, size
 
-def discover_stm32cube_fw(cli_path):
-    path = cli_path or os.environ.get("STM32CUBE_FW_PATH") or os.environ.get("STM32CUBE_PATH")
-    if not path or not os.path.isdir(path):
-        home = os.path.expanduser("~")
-        patterns = [
-            # Default STM32CubeMX / CubeIDE firmware repository on both Windows & Linux
-            os.path.join(home, "STM32Cube/Repository/STM32Cube_FW_G4_*"),
-            # Windows ST repository path
-            "C:/ST/STM32Cube/Repository/STM32Cube_FW_G4_*",
-            # Linux ST repository paths
-            "/opt/st/STM32Cube/Repository/STM32Cube_FW_G4_*",
-            "/opt/STM32Cube/Repository/STM32Cube_FW_G4_*",
-            "/usr/local/ST/STM32Cube/Repository/STM32Cube_FW_G4_*",
-        ]
-        path = find_directory_recursive(patterns)
-    return path
+def discover_stm32cube_firmware(cli_fw):
+    if cli_fw and os.path.isdir(cli_fw):
+        return cli_fw
+    env_fw = os.environ.get("STM32CUBE_FW_G4")
+    if env_fw and os.path.isdir(env_fw):
+        return env_fw
+    home = os.path.expanduser("~")
+    patterns = [
+        f"C:/Users/*/STM32Cube/Repository/STM32Cube_FW_G4_*",
+        f"{home}/STM32Cube/Repository/STM32Cube_FW_G4_*",
+        f"/opt/STM32Cube/Repository/STM32Cube_FW_G4_*",
+    ]
+    return find_directory_recursive(patterns)
 
-def parse_size_berkeley(output):
-    """Parses standard `size <elf>` Berkeley format: text, data, bss"""
-    lines = [l.strip() for l in output.strip().splitlines() if l.strip()]
-    parts = lines[-1].split()
-    return int(parts[0]), int(parts[1]), int(parts[2])
+def parse_size_output(output):
+    lines = [line.strip() for line in output.strip().splitlines() if line.strip()]
+    if len(lines) < 2:
+        return 0, 0, 0
+    parts = lines[1].split()
+    try:
+        text = int(parts[0])
+        data = int(parts[1])
+        bss = int(parts[2])
+        return text, data, bss
+    except (ValueError, IndexError):
+        return 0, 0, 0
 
-def parse_size_sysv(output):
-    """Parses `size -A <obj>` System V format: section -> size"""
+def parse_objdump_sections(output):
     sections = {}
-    for line in output.strip().splitlines():
+    for line in output.splitlines():
         parts = line.split()
-        if len(parts) >= 2 and parts[1].isdigit():
-            sections[parts[0]] = int(parts[1])
+        if len(parts) >= 4 and parts[0].isdigit():
+            name = parts[1]
+            try:
+                sz = int(parts[2], 16)
+                sections[name] = sz
+            except ValueError:
+                pass
     return sections
 
-def calc_library_flash(sections):
-    """
-    Computes total flash used by reader and evaluator, excluding writer functions.
-    Flash = .text.* + .rodata.* + .literal.* (for Xtensa) minus WickedPostfixWriter::Write.
-    """
-    total = 0
-    for name, size in sections.items():
-        if "WickedPostfixWriter5Write" in name:
-            continue
-        if name.startswith(".text") or name.startswith(".rodata") or name.startswith(".literal"):
-            total += size
-    return total
-
-def run_cmd(cmd, verbose=False):
-    """Runs command suppressing stderr linker warnings unless verbose is enabled."""
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    if res.returncode != 0:
-        print(f"Command failed with exit code {res.returncode}:\n{' '.join(cmd)}\n{res.stderr}", file=sys.stderr)
-        res.check_returncode()
-    if verbose and res.stderr:
-        print(res.stderr, file=sys.stderr)
-    return res.stdout
-
-def run_benchmark_for_config(cfg, temp_dir, src_postfix, base_src, harn_src, verbose=False):
+def run_benchmark_for_config(cfg, workdir, src_postfix, base_src, harn_src, verbose=False):
     cxx = cfg["cxx"]
     size_bin = cfg["size"]
     cflags = cfg["cflags"]
     ldflags = cfg["ldflags"]
-    base_flash = cfg["base_flash"]
 
-    obj = os.path.join(temp_dir, f"{cfg['key']}.o")
-    elf = os.path.join(temp_dir, f"{cfg['key']}.elf")
+    base_src_path = os.path.join(workdir, f"base_{cfg['key']}.cc")
+    harn_src_path = os.path.join(workdir, f"harn_{cfg['key']}.cc")
+    with open(base_src_path, "w") as f:
+        f.write(base_src)
+    with open(harn_src_path, "w") as f:
+        f.write(harn_src)
 
-    # 1. Compile WickedPostfix object
-    compile_cmd = [cxx] + cflags + ["-c", src_postfix, "-o", obj]
-    run_cmd(compile_cmd, verbose=verbose)
+    obj_postfix = os.path.join(workdir, f"postfix_{cfg['key']}.o")
+    cmd_obj = [cxx] + cflags + ["-c", src_postfix, "-o", obj_postfix]
+    if verbose:
+        print("  [CMD]", " ".join(cmd_obj))
+    res = subprocess.run(cmd_obj, capture_output=True, text=True)
+    if res.returncode != 0:
+        print(f"Error compiling object for {cfg['name']}:\n{res.stderr}", file=sys.stderr)
+        return None
 
-    # 2. Extract sections from object file
-    sysv_out = run_cmd([size_bin, "-A", obj], verbose=verbose)
-    sections = parse_size_sysv(sysv_out)
-    lib_flash = calc_library_flash(sections)
+    res_sz = subprocess.run([size_bin, obj_postfix], capture_output=True, text=True)
+    t, d, b = parse_size_output(res_sz.stdout)
+    lib_flash = t + d
 
-    # 3. Link test harness
-    link_cmd = [cxx] + cflags + [harn_src, obj, "-o", elf] + ldflags
-    run_cmd(link_cmd, verbose=verbose)
+    objdump_bin = size_bin.replace("size" + BIN_EXT, "objdump" + BIN_EXT)
+    sections = {}
+    if os.path.exists(objdump_bin):
+        res_od = subprocess.run([objdump_bin, "-h", obj_postfix], capture_output=True, text=True)
+        sections = parse_objdump_sections(res_od.stdout)
 
-    # 4. Measure linked ELF size
-    berk_out = run_cmd([size_bin, elf], verbose=verbose)
-    text_sz, data_sz, _ = parse_size_berkeley(berk_out)
-    harn_flash = text_sz + data_sz
+    base_elf = os.path.join(workdir, f"base_{cfg['key']}.elf")
+    cmd_base = [cxx] + cflags + [base_src_path, "-o", base_elf] + ldflags
+    if verbose:
+        print("  [CMD]", " ".join(cmd_base))
+    res = subprocess.run(cmd_base, capture_output=True, text=True)
+    if res.returncode != 0:
+        print(f"Error linking baseline for {cfg['name']}:\n{res.stderr}", file=sys.stderr)
+        return None
+    res_sz = subprocess.run([size_bin, base_elf], capture_output=True, text=True)
+    base_t, base_d, _ = parse_size_output(res_sz.stdout)
+    base_flash = base_t + base_d
+
+    harn_elf = os.path.join(workdir, f"harn_{cfg['key']}.elf")
+    cmd_harn = [cxx] + cflags + [harn_src_path, obj_postfix, "-o", harn_elf] + ldflags
+    if verbose:
+        print("  [CMD]", " ".join(cmd_harn))
+    res = subprocess.run(cmd_harn, capture_output=True, text=True)
+    if res.returncode != 0:
+        print(f"Error linking harness for {cfg['name']}:\n{res.stderr}", file=sys.stderr)
+        return None
+    res_sz = subprocess.run([size_bin, harn_elf], capture_output=True, text=True)
+    harn_t, harn_d, _ = parse_size_output(res_sz.stdout)
+    harn_flash = harn_t + harn_d
+
     transitive_flash = harn_flash - base_flash
 
     return {
         "name": cfg["name"],
-        "key": cfg["key"],
         "lib_flash": lib_flash,
         "transitive_flash": transitive_flash,
         "harness_flash": harn_flash,
         "base_flash": base_flash,
-        "sections": sections,
+        "sections": sections
     }
 
 def print_markdown_tables(results):
     print("\n### Formatted Markdown Tables for Documentation:\n")
 
-    # Full Profile Table
-    print("#### Full Profile (Default: All Opcodes)\n")
+    # Default Configuration Table
+    print("#### Default Configuration\n")
     print("| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |")
     print("| :--- | :---: | :---: |")
-    if "stm32_full" in results:
-        r = results["stm32_full"]
+    if "stm32_default" in results:
+        r = results["stm32_default"]
         print(f"| **STM32G4** (Cortex-M4F) | **{r['lib_flash']:,} B** (~{r['lib_flash']/1024:.1f} KB) | **{r['transitive_flash']:,} B** (~{r['transitive_flash']/1024:.1f} KB) |")
-    if "esp32s3_full" in results:
-        r = results["esp32s3_full"]
+    if "esp32s3_default" in results:
+        r = results["esp32s3_default"]
         print(f"| **ESP32-S3** (Xtensa LX7) | **{r['lib_flash']:,} B** (~{r['lib_flash']/1024:.1f} KB) | **{r['transitive_flash']:,} B** (~{r['transitive_flash']/1024:.1f} KB) |")
 
-    # Slim Profile Table
-    print("\n#### Slim Profile (`-DWICKED_POSTFIX_SLIM`)\n")
-    print("| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Full |")
+    # Fast Exp Math Table
+    print("\n#### Fast Exp Math (`-DWICKED_USE_FAST_EXP_MATH`)\n")
+    print("| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |")
     print("| :--- | :---: | :---: | :---: |")
-    if "stm32_slim" in results:
-        r = results["stm32_slim"]
-        full_r = results.get("stm32_full")
-        savings = f"{full_r['transitive_flash'] - r['transitive_flash']:,} B (~{(full_r['transitive_flash'] - r['transitive_flash'])/1024:.1f} KB)" if full_r else "—"
+    if "stm32_fast_exp" in results:
+        r = results["stm32_fast_exp"]
+        def_r = results.get("stm32_default")
+        savings = f"{def_r['transitive_flash'] - r['transitive_flash']:,} B (~{(def_r['transitive_flash'] - r['transitive_flash'])/1024:.1f} KB)" if def_r else "—"
         print(f"| **STM32G4** (Cortex-M4F) | **{r['lib_flash']:,} B** (~{r['lib_flash']/1024:.1f} KB) | **{r['transitive_flash']:,} B** (~{r['transitive_flash']/1024:.1f} KB) | **{savings}** |")
-    if "esp32s3_slim" in results:
-        r = results["esp32s3_slim"]
-        full_r = results.get("esp32s3_full")
-        savings = f"{full_r['transitive_flash'] - r['transitive_flash']:,} B (~{(full_r['transitive_flash'] - r['transitive_flash'])/1024:.1f} KB)" if full_r else "—"
+    if "esp32s3_fast_exp" in results:
+        r = results["esp32s3_fast_exp"]
+        def_r = results.get("esp32s3_default")
+        savings = f"{def_r['transitive_flash'] - r['transitive_flash']:,} B (~{(def_r['transitive_flash'] - r['transitive_flash'])/1024:.1f} KB)" if def_r else "—"
         print(f"| **ESP32-S3** (Xtensa LX7) | **{r['lib_flash']:,} B** (~{r['lib_flash']/1024:.1f} KB) | **{r['transitive_flash']:,} B** (~{r['transitive_flash']/1024:.1f} KB) | **{savings}** |")
 
-    # CMSIS-DSP Table
-    if "stm32_slim_cmsis_dsp" in results:
-        print("\n#### Slim Profile with CMSIS-DSP (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_CMSIS_DSP`)\n")
-        print("| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Slim |")
+    # Hardware CORDIC Table (with Fast Exp)
+    if "stm32_cordic" in results:
+        print("\n#### Hardware CORDIC (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_STM32_CORDIC`)\n")
+        print("| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |")
         print("| :--- | :---: | :---: | :---: |")
-        r = results["stm32_slim_cmsis_dsp"]
-        slim_r = results.get("stm32_slim")
-        savings = f"{slim_r['transitive_flash'] - r['transitive_flash']:,} B (~{(slim_r['transitive_flash'] - r['transitive_flash'])/1024:.1f} KB)" if slim_r else "—"
+        r = results["stm32_cordic"]
+        def_r = results.get("stm32_default")
+        savings = f"{def_r['transitive_flash'] - r['transitive_flash']:,} B (~{(def_r['transitive_flash'] - r['transitive_flash'])/1024:.1f} KB)" if def_r else "—"
         print(f"| **STM32G4** (Cortex-M4F) | **{r['lib_flash']:,} B** (~{r['lib_flash']/1024:.1f} KB) | **{r['transitive_flash']:,} B** (~{r['transitive_flash']/1024:.1f} KB) | **{savings}** |")
 
-    # CORDIC Table
-    if "stm32_slim_cordic" in results:
-        print("\n#### Slim Profile with Hardware CORDIC (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_STM32_CORDIC`)\n")
-        print("| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Slim |")
+    # CMSIS-DSP Table (with Fast Exp)
+    if "stm32_cmsis_dsp" in results:
+        print("\n#### CMSIS-DSP (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_CMSIS_DSP`)\n")
+        print("| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Default |")
         print("| :--- | :---: | :---: | :---: |")
-        r = results["stm32_slim_cordic"]
-        slim_r = results.get("stm32_slim")
-        savings = f"{slim_r['transitive_flash'] - r['transitive_flash']:,} B (~{(slim_r['transitive_flash'] - r['transitive_flash'])/1024:.1f} KB)" if slim_r else "—"
+        r = results["stm32_cmsis_dsp"]
+        def_r = results.get("stm32_default")
+        savings = f"{def_r['transitive_flash'] - r['transitive_flash']:,} B (~{(def_r['transitive_flash'] - r['transitive_flash'])/1024:.1f} KB)" if def_r else "—"
         print(f"| **STM32G4** (Cortex-M4F) | **{r['lib_flash']:,} B** (~{r['lib_flash']/1024:.1f} KB) | **{r['transitive_flash']:,} B** (~{r['transitive_flash']/1024:.1f} KB) | **{savings}** |")
 
 def main():
@@ -272,79 +280,76 @@ def main():
     parser.add_argument("--verbose", action="store_true", help="Print verbose linker outputs")
     args = parser.parse_args()
 
-    # Determine protocol root
     if args.protocol_root:
         protocol_root = os.path.abspath(args.protocol_root)
     else:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         protocol_root = os.path.abspath(os.path.join(script_dir, ".."))
 
-    src_postfix = os.path.join(protocol_root, "cpp", "src", "WickedPostfix.cc")
     include_dir = os.path.join(protocol_root, "cpp", "include")
+    src_postfix = os.path.join(protocol_root, "cpp", "src", "WickedPostfix.cc")
 
     if not os.path.isfile(src_postfix):
-        print(f"Error: Could not find WickedPostfix.cc at {src_postfix}", file=sys.stderr)
+        print(f"Error: WickedPostfix.cc not found at {src_postfix}", file=sys.stderr)
         sys.exit(1)
 
     arm_cxx, arm_size = discover_arm_toolchain(args.arm_cxx, args.arm_size)
     xtensa_cxx, xtensa_size = discover_xtensa_toolchain(args.xtensa_cxx, args.xtensa_size)
-    cube_fw = discover_stm32cube_fw(args.stm32cube_fw)
+    cube_fw = discover_stm32cube_firmware(args.stm32cube_fw)
 
     print("=" * 70)
     print("WickedPostfix Flash Memory Footprint Benchmark")
     print("=" * 70)
     print(f"Protocol Root:    {protocol_root}")
-    print(f"ARM Toolchain:    {arm_cxx or 'NOT FOUND'} (size: {arm_size or 'NOT FOUND'})")
-    print(f"Xtensa Toolchain: {xtensa_cxx or 'NOT FOUND'} (size: {xtensa_size or 'NOT FOUND'})")
-    print(f"STM32Cube FW:     {cube_fw or 'NOT FOUND'}")
+    print(f"ARM Toolchain:    {arm_cxx} (size: {arm_size})")
+    print(f"Xtensa Toolchain: {xtensa_cxx} (size: {xtensa_size})")
+    print(f"STM32Cube FW:     {cube_fw}")
     print("=" * 70)
 
-    if not arm_cxx and not xtensa_cxx:
-        print("Error: No cross-compilers found. Provide paths via --arm-cxx / --xtensa-cxx.", file=sys.stderr)
+    if not (arm_cxx and arm_size) and not (xtensa_cxx and xtensa_size):
+        print("Error: Neither ARM nor Xtensa toolchains were discovered. Install STM32CubeIDE / ESP-IDF or pass CLI paths.", file=sys.stderr)
         sys.exit(1)
 
     results = {}
+    base_src = BASELINE_SRC
+    harn_src = HARNESS_SRC
 
     with tempfile.TemporaryDirectory() as td:
-        base_src = os.path.join(td, "baseline.cc")
-        harn_src = os.path.join(td, "harness.cc")
-        with open(base_src, "w") as f:
-            f.write(BASELINE_SRC)
-        with open(harn_src, "w") as f:
-            f.write(HARNESS_SRC)
-
-        # Baseline for ARM
         arm_base_flash = 0
+        xt_base_flash = 0
+
         if arm_cxx and arm_size:
-            base_elf_arm = os.path.join(td, "base_arm.elf")
-            run_cmd([
-                arm_cxx, "-mcpu=cortex-m4", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard", "-mthumb",
-                "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti", "-ffunction-sections", "-fdata-sections",
-                "--specs=nano.specs", "--specs=nosys.specs", "-Wl,--gc-sections",
-                base_src, "-o", base_elf_arm, "-lm"
-            ], verbose=args.verbose)
-            t, d, _ = parse_size_berkeley(run_cmd([arm_size, base_elf_arm]))
+            base_elf = os.path.join(td, "base_arm.elf")
+            base_src_path = os.path.join(td, "base_arm.cc")
+            with open(base_src_path, "w") as f:
+                f.write(base_src)
+            cmd = [arm_cxx, "-mcpu=cortex-m4", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard", "-mthumb",
+                   "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti", "-ffunction-sections", "-fdata-sections",
+                   base_src_path, "-o", base_elf, "--specs=nano.specs", "--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
+            subprocess.run(cmd, check=True)
+            res_sz = subprocess.run([arm_size, base_elf], capture_output=True, text=True)
+            t, d, _ = parse_size_output(res_sz.stdout)
             arm_base_flash = t + d
 
-        # Baseline for Xtensa
-        xt_base_flash = 0
         if xtensa_cxx and xtensa_size:
-            base_elf_xt = os.path.join(td, "base_xt.elf")
-            run_cmd([
-                xtensa_cxx, "-mlongcalls",
-                "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti", "-ffunction-sections", "-fdata-sections",
-                "--specs=nosys.specs", "-Wl,--gc-sections",
-                base_src, "-o", base_elf_xt, "-lm"
-            ], verbose=args.verbose)
-            t, d, _ = parse_size_berkeley(run_cmd([xtensa_size, base_elf_xt]))
+            base_elf = os.path.join(td, "base_xt.elf")
+            base_src_path = os.path.join(td, "base_xt.cc")
+            with open(base_src_path, "w") as f:
+                f.write(base_src)
+            cmd = [xtensa_cxx, "-mlongcalls", "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti",
+                   "-ffunction-sections", "-fdata-sections", base_src_path, "-o", base_elf,
+                   "--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
+            subprocess.run(cmd, check=True)
+            res_sz = subprocess.run([xtensa_size, base_elf], capture_output=True, text=True)
+            t, d, _ = parse_size_output(res_sz.stdout)
             xt_base_flash = t + d
 
         # Configure targets
         configs = []
         if arm_cxx and arm_size:
             configs.append({
-                "key": "stm32_full",
-                "name": "STM32G4 Full",
+                "key": "stm32_default",
+                "name": "STM32G4 Default",
                 "cxx": arm_cxx, "size": arm_size, "base_flash": arm_base_flash,
                 "cflags": ["-mcpu=cortex-m4", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard", "-mthumb",
                            "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti", "-ffunction-sections", "-fdata-sections",
@@ -352,21 +357,12 @@ def main():
                 "ldflags": ["--specs=nano.specs", "--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
             })
             configs.append({
-                "key": "stm32_full_fast_exp",
-                "name": "STM32G4 Full + Fast Exp",
+                "key": "stm32_fast_exp",
+                "name": "STM32G4 + Fast Exp Math",
                 "cxx": arm_cxx, "size": arm_size, "base_flash": arm_base_flash,
                 "cflags": ["-mcpu=cortex-m4", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard", "-mthumb",
                            "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti", "-ffunction-sections", "-fdata-sections",
                            "-DWICKED_USE_FAST_EXP_MATH", f"-I{include_dir}"],
-                "ldflags": ["--specs=nano.specs", "--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
-            })
-            configs.append({
-                "key": "stm32_slim",
-                "name": "STM32G4 Slim",
-                "cxx": arm_cxx, "size": arm_size, "base_flash": arm_base_flash,
-                "cflags": ["-mcpu=cortex-m4", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard", "-mthumb",
-                           "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti", "-ffunction-sections", "-fdata-sections",
-                           "-DWICKED_POSTFIX_SLIM", f"-I{include_dir}"],
                 "ldflags": ["--specs=nano.specs", "--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
             })
 
@@ -378,12 +374,12 @@ def main():
 
                 if os.path.isdir(cmsis_dsp_inc) and os.path.isdir(cmsis_lib_dir):
                     configs.append({
-                        "key": "stm32_slim_cmsis_dsp",
-                        "name": "STM32G4 Slim + CMSIS-DSP",
+                        "key": "stm32_cmsis_dsp",
+                        "name": "STM32G4 + Fast Exp + CMSIS-DSP",
                         "cxx": arm_cxx, "size": arm_size, "base_flash": arm_base_flash,
                         "cflags": ["-mcpu=cortex-m4", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard", "-mthumb",
                                    "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti", "-ffunction-sections", "-fdata-sections",
-                                   "-fpermissive", "-DARM_MATH_CM4", "-DWICKED_POSTFIX_SLIM", "-DWICKED_USE_CMSIS_DSP",
+                                   "-fpermissive", "-DARM_MATH_CM4", "-DWICKED_USE_FAST_EXP_MATH", "-DWICKED_USE_CMSIS_DSP",
                                    f"-I{include_dir}", f"-I{cmsis_dsp_inc}", f"-I{cmsis_core_inc}"],
                         "ldflags": ["--specs=nano.specs", "--specs=nosys.specs", "-Wl,--gc-sections",
                                     f"-L{cmsis_lib_dir}", "-larm_cortexM4lf_math", "-lm"]
@@ -393,18 +389,8 @@ def main():
 
                 if os.path.isdir(stm32g4_dev_inc):
                     configs.append({
-                        "key": "stm32_slim_cordic",
-                        "name": "STM32G4 Slim + CORDIC",
-                        "cxx": arm_cxx, "size": arm_size, "base_flash": arm_base_flash,
-                        "cflags": ["-mcpu=cortex-m4", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard", "-mthumb",
-                                   "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti", "-ffunction-sections", "-fdata-sections",
-                                   "-DWICKED_POSTFIX_SLIM", "-DWICKED_USE_STM32_CORDIC", "-DSTM32G474xx",
-                                   f"-I{include_dir}", f"-I{stm32g4_dev_inc}", f"-I{cmsis_core_inc}"],
-                        "ldflags": ["--specs=nano.specs", "--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
-                    })
-                    configs.append({
-                        "key": "stm32_full_cordic_fast_exp",
-                        "name": "STM32G4 Full + Fast Exp + CORDIC",
+                        "key": "stm32_cordic",
+                        "name": "STM32G4 + Fast Exp + CORDIC",
                         "cxx": arm_cxx, "size": arm_size, "base_flash": arm_base_flash,
                         "cflags": ["-mcpu=cortex-m4", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard", "-mthumb",
                                    "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti", "-ffunction-sections", "-fdata-sections",
@@ -419,27 +405,19 @@ def main():
 
         if xtensa_cxx and xtensa_size:
             configs.append({
-                "key": "esp32s3_full",
-                "name": "ESP32-S3 Full",
+                "key": "esp32s3_default",
+                "name": "ESP32-S3 Default",
                 "cxx": xtensa_cxx, "size": xtensa_size, "base_flash": xt_base_flash,
                 "cflags": ["-mlongcalls", "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti",
                            "-ffunction-sections", "-fdata-sections", f"-I{include_dir}"],
                 "ldflags": ["--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
             })
             configs.append({
-                "key": "esp32s3_full_fast_exp",
-                "name": "ESP32-S3 Full + Fast Exp",
+                "key": "esp32s3_fast_exp",
+                "name": "ESP32-S3 + Fast Exp Math",
                 "cxx": xtensa_cxx, "size": xtensa_size, "base_flash": xt_base_flash,
                 "cflags": ["-mlongcalls", "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti",
                            "-ffunction-sections", "-fdata-sections", "-DWICKED_USE_FAST_EXP_MATH", f"-I{include_dir}"],
-                "ldflags": ["--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
-            })
-            configs.append({
-                "key": "esp32s3_slim",
-                "name": "ESP32-S3 Slim",
-                "cxx": xtensa_cxx, "size": xtensa_size, "base_flash": xt_base_flash,
-                "cflags": ["-mlongcalls", "-std=c++20", "-Os", "-fno-exceptions", "-fno-rtti",
-                           "-ffunction-sections", "-fdata-sections", "-DWICKED_POSTFIX_SLIM", f"-I{include_dir}"],
                 "ldflags": ["--specs=nosys.specs", "-Wl,--gc-sections", "-lm"]
             })
 
@@ -452,31 +430,27 @@ def main():
     print("\n" + "=" * 80)
     print("BENCHMARK SUMMARY")
     print("=" * 80)
-    print(f"{'Configuration':<28} | {'Library-Only Flash':<18} | {'Transitive Flash':<18} | {'Notes'}")
+    print(f"{'Configuration':<32} | {'Library-Only Flash':<18} | {'Transitive Flash':<18} | {'Notes'}")
     print("-" * 80)
     for key, r in results.items():
         lib_str = f"{r['lib_flash']:,} B (~{r['lib_flash']/1024:.1f} KB)"
         trans_str = f"{r['transitive_flash']:,} B (~{r['transitive_flash']/1024:.1f} KB)"
         notes = f"Harness: {r['harness_flash']}, Baseline: {r['base_flash']}"
-        print(f"{r['name']:<28} | {lib_str:<18} | {trans_str:<18} | {notes}")
+        print(f"{r['name']:<32} | {lib_str:<18} | {trans_str:<18} | {notes}")
     print("=" * 80)
 
-    # Print section breakdown for STM32 Full
-    if "stm32_full" in results:
-        secs = results["stm32_full"]["sections"]
+    # Print section breakdown for STM32 Default
+    if "stm32_default" in results:
+        secs = results["stm32_default"]["sections"]
         val_sz = sum(v for k, v in secs.items() if "WickedPostfixValidate" in k)
         eval_sz = sum(v for k, v in secs.items() if "WickedPostfixEvaluate" in k)
         read_sz = sum(v for k, v in secs.items() if "WickedPostfixRead" in k or "copy_n" in k)
         str_sz = sum(v for k, v in secs.items() if "WickedPostfixOpToString" in k or "CSWTCH" in k or "str1.1" in k)
-        print("\nSection Breakdown for STM32G4 Full (Thumb-2):")
+        print("\nSection Breakdown for STM32G4 Default (Thumb-2):")
         print(f"  * WickedPostfixValidate:    ~{val_sz} B")
         print(f"  * WickedPostfixEvaluate:    ~{eval_sz} B")
         print(f"  * WickedPostfixRead/copy_n: ~{read_sz} B")
         print(f"  * OpToString / Switch:      ~{str_sz} B")
-
-    if "stm32_slim" in results:
-        eval_sz_slim = sum(v for k, v in results["stm32_slim"]["sections"].items() if "WickedPostfixEvaluate" in k)
-        print(f"  * WickedPostfixEvaluate (Slim): ~{eval_sz_slim} B")
 
     print_markdown_tables(results)
     return results

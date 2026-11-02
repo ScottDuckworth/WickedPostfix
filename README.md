@@ -80,20 +80,12 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 
 ### Embedded Memory & Acceleration Flags (C++)
 
-For flash-constrained microcontrollers (e.g., STM32 with 32 KB or 64 KB flash), compile-time preprocessor flags allow reducing flash consumption either by disabling unneeded opcodes to dead-strip standard library functions, or by routing active opcodes to hardware accelerators:
+For flash-constrained microcontrollers (e.g., STM32 with 32 KB or 64 KB flash), compile-time preprocessor flags allow reducing flash consumption by routing transcendental operations to hardware accelerators or lightweight polynomial approximations:
 
-#### 1. Opcode Disabling Flags (Feature Stripping)
-These flags omit specific non-core operations from the evaluator, allowing the linker (`-Wl,--gc-sections`) to dead-strip their underlying `libm` implementations:
+#### 1. Trigonometric Hardware Acceleration & Alternative Backends
+Replaces Newlib's ~3.1 KB software range-reduction machinery and ~0.8 KB arctangent engine with lightweight hardware or DSP alternatives:
 
-* **`-DWICKED_POSTFIX_SLIM`** or **`-DWICKED_POSTFIX_NO_EXP_MATH`**: Disables non-core exponential/power math (`Pow`, `Exp`, `Ln`), eliminating `powf`, `expf`, and `logf` from `libm`.
-*(Note: Extended trigonometric functions `Tan`, `Asin`, and `Acos` are derived algebraically directly from `Sin`/`Cos` and `Atan2`, so they dead-strip `libm`'s `tanf`, `asinf`, and `acosf` automatically across all profiles without needing to disable the opcodes).*
-
-When opcodes are disabled via these flags, programs attempting to evaluate them are rejected during validation (`WickedPostfixValidate`) with `WickedEvalStatus_UndefinedOperation`.
-
-#### 2. Trigonometric Hardware Acceleration & Alternative Backends
-These flags **do not disable any opcodes**; all operations (`Sin`, `Cos`, `CosSin`, and `Atan2`) remain fully supported and validated. Instead, they replace Newlib's ~3.1 KB software range-reduction machinery and ~0.8 KB arctangent engine with lightweight hardware or DSP alternatives:
-
-* **`-DWICKED_USE_STM32_CORDIC`**: Routes `Sin`, `Cos`, `CosSin`, and `Atan2` (along with `PanTilt`) to the hardware CORDIC co-processor on STM32 microcontrollers (STM32G4, STM32H5, STM32U5, STM32H7R/S). Automatically discovers family headers (`stm32g4xx.h`, `stm32h5xx.h`, `stm32u5xx.h`, etc.) or accepts custom overrides via `-DWICKED_STM32_HEADER="<header.h>"`. Computes trigonometric functions in 4–8 CPU cycles with **0 bytes of lookup tables**, capturing **~4.8 KB** of flash savings vs. standard Slim and completely dead-stripping all Newlib trigonometric code.
+* **`-DWICKED_USE_STM32_CORDIC`**: Routes `Sin`, `Cos`, `CosSin`, and `Atan2` (along with `PanTilt`) to the hardware CORDIC co-processor on STM32 microcontrollers (STM32G4, STM32H5, STM32U5, STM32H7R/S). Automatically discovers family headers (`stm32g4xx.h`, `stm32h5xx.h`, `stm32u5xx.h`, etc.) or accepts custom overrides via `-DWICKED_STM32_HEADER="<header.h>"`. Computes trigonometric functions in 4–8 CPU cycles with **0 bytes of lookup tables**, capturing **~5.5 KB** of flash savings and completely dead-stripping all Newlib trigonometric code.
 * **`-DWICKED_USE_CMSIS_DSP`**: Routes `Sin`, `Cos`, and `CosSin` to ARM CMSIS-DSP (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`), eliminating Newlib's ~3.1 KB range-reduction engine.
 * **Custom Backends**: Firmware targeting other hardware (e.g., TI TMU, NXP PowerQuad) can provide custom overrides directly:
   * `WICKED_CUSTOM_SIN(t)`
@@ -101,8 +93,10 @@ These flags **do not disable any opcodes**; all operations (`Sin`, `Cos`, `CosSi
   * `WICKED_CUSTOM_SINCOS(t, s, c)`
   * `WICKED_CUSTOM_ATAN2(y, x)`
 
-#### 3. Exponential Math Optimization & Fast Math Backends
-* **Default Case (`Pow` Derivation)**: In the standard Full profile, `Pow` is mathematically derived from `Exp` and `Ln` ($x^y = \exp(y \ln x)$). This dead-strips Newlib's large `powf` function from `libm.a` by default without disabling any opcodes.
+*(Note: Extended trigonometric functions `Tan`, `Asin`, and `Acos` are derived algebraically directly from `Sin`/`Cos` and `Atan2`, dead-stripping `libm`'s `tanf`, `asinf`, and `acosf` automatically without requiring any flags).*
+
+#### 2. Exponential Math Optimization & Fast Math Backends
+* **Default Case (`Pow` Derivation)**: `Pow` is mathematically derived from `Exp` and `Ln` ($x^y = \exp(y \ln x)$). This dead-strips Newlib's large `powf` function from `libm.a` by default.
 * **`-DWICKED_USE_FAST_EXP_MATH`**: Enables lightweight, table-less IEEE-754 bit-trick and Horner polynomial approximations for `Exp`, `Ln`, and `Pow` with $< 5 \times 10^{-6}$ relative error across the entire float range. Completely eliminates `libm` exponential dependencies, saving **~0.9 KB** of flash across STM32 and ESP32.
 * **Custom Overrides**: Pluggable hooks allow binding vendor DSP or hardware math accelerators:
   * `WICKED_CUSTOM_EXP(x)`
@@ -116,48 +110,35 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 * **Library-Only Flash**: Code and constant rodata generated directly by `WickedPostfix` functions in `WickedPostfix.cc`.
 * **Transitive Flash**: Net flash delta added to a linked firmware binary with linker dead-stripping (`-Wl,--gc-sections`), capturing the library code plus all transitive standard library (`libm` / Newlib) dependencies.
 
-#### Full Profile (Default: All 52 Opcodes)
+#### Default Configuration
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,923 B** (~3.8 KB) | **10,784 B** (~10.5 KB) |
-| **ESP32-S3** (Xtensa LX7) | **5,183 B** (~5.1 KB) | **12,272 B** (~12.0 KB) |
+| **STM32G4** (Cortex-M4F) | **3,963 B** (~3.9 KB) | **10,784 B** (~10.5 KB) |
+| **ESP32-S3** (Xtensa LX7) | **5,231 B** (~5.1 KB) | **12,272 B** (~12.0 KB) |
 
-#### Full Profile with Fast Exp Math (`-DWICKED_USE_FAST_EXP_MATH`)
+#### Fast Exp Math (`-DWICKED_USE_FAST_EXP_MATH`)
 
-| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default Full |
+| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,343 B** (~4.2 KB) | **9,856 B** (~9.6 KB) | **928 B (~0.9 KB)** |
-| **ESP32-S3** (Xtensa LX7) | **5,659 B** (~5.5 KB) | **11,368 B** (~11.1 KB) | **904 B (~0.9 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,383 B** (~4.3 KB) | **9,856 B** (~9.6 KB) | **928 B (~0.9 KB)** |
+| **ESP32-S3** (Xtensa LX7) | **5,707 B** (~5.6 KB) | **11,368 B** (~11.1 KB) | **904 B (~0.9 KB)** |
 
-#### Full Profile with Fast Exp Math + Hardware CORDIC (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_STM32_CORDIC`)
+#### Hardware CORDIC (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_STM32_CORDIC`)
 
-| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default Full |
+Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5, STM32H7R/S) for trigonometric evaluation (`Sin`, `Cos`, `CosSin`, `Atan2`, and `PanTilt`) together with Fast Exp Math. Because CORDIC executes in hardware registers with zero lookup tables and Fast Exp Math replaces software exponentials, this completely dead-strips all Newlib trigonometric and exponential runtime routines:
+
+| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,611 B** (~4.5 KB) | **5,128 B** (~5.0 KB) | **5,656 B (~5.5 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,651 B** (~4.5 KB) | **5,128 B** (~5.0 KB) | **5,656 B (~5.5 KB)** |
 
-#### Slim Profile (`-DWICKED_POSTFIX_SLIM`)
+#### CMSIS-DSP (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_CMSIS_DSP`)
 
-| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Full |
+Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated functions (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`) alongside Fast Exp Math:
+
+| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,759 B** (~3.7 KB) | **9,272 B** (~9.1 KB) | **3,240 B (~3.2 KB)** |
-| **ESP32-S3** (Xtensa LX7) | **4,883 B** (~4.8 KB) | **10,648 B** (~10.4 KB) | **3,260 B (~3.2 KB)** |
-
-#### Slim Profile with CMSIS-DSP (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_CMSIS_DSP`)
-
-Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated functions (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`), evaluating only the required function and completely dead-stripping Newlib's ~3.1 KB Payne-Hanek range reduction subsystem:
-
-| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Slim |
-| :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,759 B** (~3.7 KB) | **7,588 B** (~7.4 KB) | **1,684 B (~1.6 KB)** |
-
-#### Slim Profile with Hardware CORDIC (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_STM32_CORDIC`)
-
-Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5, STM32H7R/S) for trigonometric evaluation (`Sin`, `Cos`, `CosSin`, `Atan2`, and `PanTilt`). Because CORDIC executes in hardware registers with zero lookup tables, it completely dead-strips all Newlib trigonometric code and tables (`__kernel_rem_pio2f`, `two_over_pi`, `atan2f`, `atanf`), eliminating `libm` trigonometry from the binary:
-
-| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Slim |
-| :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,027 B** (~3.9 KB) | **4,396 B** (~4.3 KB) | **4,876 B (~4.8 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,383 B** (~4.3 KB) | **8,320 B** (~8.1 KB) | **2,464 B (~2.4 KB)** |
 
 > [!NOTE]
 > **Firmware Considerations for CORDIC:**
@@ -167,7 +148,7 @@ Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5
 
 #### Section Breakdown (STM32G4, Thumb-2)
 * **Bytecode Validation (`WickedPostfixValidate`)**: ~572 B `.text`
-* **Bytecode Evaluation (`WickedPostfixEvaluate`)**: ~2,516 B (Slim) / ~2,552 B (Full) `.text`
+* **Bytecode Evaluation (`WickedPostfixEvaluate`)**: ~2,732 B `.text`
 * **Reader & Utilities (`WickedPostfixRead`, `copy_n`)**: ~58 B `.text`
 * **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~561 B `.rodata`
 

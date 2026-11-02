@@ -397,11 +397,9 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, ui
       case WickedPostfixOp_CosSin:    status = validate::CosSin(ctx); break;
       case WickedPostfixOp_PanTilt:   status = validate::PanTilt(ctx); break;
       case WickedPostfixOp_Ipow:      status = validate::Ipow(ctx); break;
-#ifndef WICKED_POSTFIX_NO_EXP_MATH
       case WickedPostfixOp_Pow:       status = validate::BinaryOp(ctx); break;
       case WickedPostfixOp_Exp:
       case WickedPostfixOp_Ln:        status = validate::UnaryOp(ctx); break;
-#endif
       case WickedPostfixOp_PushVec:   status = validate::PushVec(ctx); break;
       case WickedPostfixOp_AddVec:
       case WickedPostfixOp_SubVec:
@@ -690,7 +688,6 @@ WICKED_ALWAYS_INLINE void Ipow(EvalContext& ctx) {
   ctx.peek() = ipow(ctx.peek(), exp);
 }
 
-#ifndef WICKED_POSTFIX_NO_EXP_MATH
 WICKED_ALWAYS_INLINE void Pow(EvalContext& ctx) {
   float b = ctx.pop();
   ctx.peek() = wicked_powf(ctx.peek(), b);
@@ -703,7 +700,6 @@ WICKED_ALWAYS_INLINE void Exp(EvalContext& ctx) {
 WICKED_ALWAYS_INLINE void Ln(EvalContext& ctx) {
   ctx.peek() = wicked_logf(ctx.peek());
 }
-#endif
 
 WICKED_ALWAYS_INLINE void PushVec(EvalContext& ctx) {
   uint8_t size = ctx.fetch_byte() + 1;
@@ -1021,11 +1017,9 @@ extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_si
       case WickedPostfixOp_CosSin:    ops::CosSin(ctx); break;
       case WickedPostfixOp_PanTilt:   ops::PanTilt(ctx); break;
       case WickedPostfixOp_Ipow:      ops::Ipow(ctx); break;
-#ifndef WICKED_POSTFIX_NO_EXP_MATH
       case WickedPostfixOp_Pow:       ops::Pow(ctx); break;
       case WickedPostfixOp_Exp:       ops::Exp(ctx); break;
       case WickedPostfixOp_Ln:        ops::Ln(ctx); break;
-#endif
       case WickedPostfixOp_PushVec:   ops::PushVec(ctx); break;
       case WickedPostfixOp_AddVec:    ops::AddVec(ctx); break;
       case WickedPostfixOp_SubVec:    ops::SubVec(ctx); break;
