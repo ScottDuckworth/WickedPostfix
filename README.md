@@ -41,42 +41,42 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 | 14 | `Sub` | `a b` → `a - b` | Scalar subtraction | *None* |
 | 15 | `Mul` | `a b` → `a * b` | Scalar multiplication | *None* |
 | 16 | `Div` | `a b` → `a / b` | Scalar division | *None* |
-| 17 | `Pow` | `a b` → `a ^ b` | Scalar power | *None* |
-| 18 | `Atan2` | `y x` → `atan2(y, x)` | Four-quadrant inverse tangent | *None* |
-| 19 | `Neg` | `a` → `-a` | Scalar negation | *None* |
-| 20 | `Abs` | `a` → `\|a\|` | Scalar absolute value | *None* |
-| 21 | `Inv` | `a` → `1 / a` | Scalar reciprocal | *None* |
-| 22 | `Sqrt` | `a` → `sqrt(a)` | Square root | *None* |
+| 17 | `Neg` | `a` → `-a` | Scalar negation | *None* |
+| 18 | `Abs` | `a` → `\|a\|` | Scalar absolute value | *None* |
+| 19 | `Inv` | `a` → `1 / a` | Scalar reciprocal | *None* |
+| 20 | `Sqrt` | `a` → `sqrt(a)` | Square root | *None* |
+| 21 | `Ipow` | `a` → `a ^ exp` | Integer exponentiation | **1 byte**:<br>• `[7:0]`: `exp` (two's complement signed 8-bit int, -128..127) |
+| 22 | `Pow` | `a b` → `a ^ b` | Scalar power | *None* |
 | 23 | `Exp` | `a` → `exp(a)` | Exponential | *None* |
 | 24 | `Ln` | `a` → `ln(a)` | Natural logarithm | *None* |
 | 25 | `Sin` | `a` → `sin(a)` | Sine | *None* |
 | 26 | `Cos` | `a` → `cos(a)` | Cosine | *None* |
-| 27 | `Tan` | `a` → `tan(a)` | Tangent | *None* |
-| 28 | `Asin` | `a` → `asin(a)` | Arc sine | *None* |
-| 29 | `Acos` | `a` → `acos(a)` | Arc cosine | *None* |
-| 30 | `Ipow` | `a` → `a ^ exp` | Integer exponentiation | **1 byte**:<br>• `[7:0]`: `exp` (two's complement signed 8-bit int, -128..127) |
-| 31 | `MulAdd` | `a b c` → `a * b + c` | Fused multiply-add | *None* |
-| 32 | `MulSub` | `a b c` → `a * b - c` | Fused multiply-subtract | *None* |
-| 33 | `SubMul` | `c a b` → `c - a * b` | Fused subtract-multiply | *None* |
-| 34 | `PushVec` | ` ` → `v[N]` | Push vector float literals onto stack | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$)<br>**Followed by**: `size * 4` bytes (IEEE 754 32-bit float literals) |
-| 35 | `AddVec` | `u[N] v[N]` → `(u + v)[N]` | Componentwise vector addition | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 36 | `SubVec` | `u[N] v[N]` → `(u - v)[N]` | Componentwise vector subtraction | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 37 | `MulVec` | `u[N] v[N]` → `(u * v)[N]` | Componentwise vector multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 38 | `DivVec` | `u[N] v[N]` → `(u / v)[N]` | Componentwise vector division | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 39 | `NegVec` | `v[N]` → `(-v)[N]` | Componentwise vector negation | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 40 | `InvVec` | `v[N]` → `(1 / v)[N]` | Componentwise vector reciprocal | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 41 | `DotVec` | `u[N] v[N]` → `(u · v)` | Vector dot product | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 42 | `NormSqVec` | `v[N]` → `\|\|v\|\|^2` | Squared Euclidean norm $\|v\|^2$ | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 43 | `SumVec` | `v[N]` → `sum(v)` | Sum of vector components | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 44 | `MulAddVec` | `a[N] b[N] c[N]` → `(a * b + c)[N]` | Componentwise fused multiply-add | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 45 | `MulSubVec` | `a[N] b[N] c[N]` → `(a * b - c)[N]` | Componentwise fused multiply-subtract | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 46 | `SubMulVec` | `c[N] a[N] b[N]` → `(c - a * b)[N]` | Componentwise fused subtract-multiply | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 47 | `ScaleVec` | `v[N] s` → `(s * v)[N]` | Vector scalar multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 48 | `LerpVec` | `t` → `((1 - t)*v0 + t*v1)[N]` | Linear interpolation between two immediate vectors for scalar $t$ | **1 byte dimension**:<br>• `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$)<br>**Followed by**: `2 * size * 4` bytes of IEEE 754 32-bit floats (interleaved component pairs: $v_{0,0}, v_{1,0}, v_{0,1}, v_{1,1}, \dots, v_{0,N-1}, v_{1,N-1}$) |
-| 49 | `MulMat` | `v[rows]` → `(v * M)[cols]` | Vector-matrix multiplication $w = v \cdot M$ with immediate matrix $M$ | **1 byte dimension**:<br>• `[1:0]`: `rows - 1` (0..3 for 1..4 input dimensions / rows in $M$)<br>• `[3:2]`: Reserved (must be 0)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions / cols in $M$)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit floats ($M$ in column-major order: column by column) |
-| 50 | `Poly` | `t` → `P(t)[cols]` | Polynomial evaluation for scalar $t$ with immediate coefficients | **1 byte dimension**:<br>• `[3:0]`: `rows - 1` (0..15 for 1..16 coefficients per column / degree + 1)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit float coefficients (degree by degree from highest order down to constant term: for each degree, column 0 to cols-1) |
-| 51 | `CosSin` | `t` → `cos(t) sin(t)` | Simultaneous scalar cosine and sine evaluation | *None* |
-| 52 | `PanTilt` | `v[3]` → `pan tilt` | Pan and tilt spherical angles from 3D line-of-sight vector $[v_0, v_1, v_2]$: $\text{pan} = \text{atan2}(v_1, v_0)$, $\text{tilt} = \text{atan2}(v_2, \sqrt{v_0^2 + v_1^2})$ | *None* |
+| 27 | `CosSin` | `t` → `cos(t) sin(t)` | Simultaneous scalar cosine and sine evaluation | *None* |
+| 28 | `Atan2` | `y x` → `atan2(y, x)` | Four-quadrant inverse tangent | *None* |
+| 29 | `PanTilt` | `v[3]` → `pan tilt` | Pan and tilt spherical angles from 3D line-of-sight vector $[v_0, v_1, v_2]$: $\text{pan} = \text{atan2}(v_1, v_0)$, $\text{tilt} = \text{atan2}(v_2, \sqrt{v_0^2 + v_1^2})$ | *None* |
+| 30 | `Tan` | `a` → `tan(a)` | Tangent | *None* |
+| 31 | `Asin` | `a` → `asin(a)` | Arc sine | *None* |
+| 32 | `Acos` | `a` → `acos(a)` | Arc cosine | *None* |
+| 33 | `MulAdd` | `a b c` → `a * b + c` | Fused multiply-add | *None* |
+| 34 | `MulSub` | `a b c` → `a * b - c` | Fused multiply-subtract | *None* |
+| 35 | `SubMul` | `c a b` → `c - a * b` | Fused subtract-multiply | *None* |
+| 36 | `PushVec` | ` ` → `v[N]` | Push vector float literals onto stack | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$)<br>**Followed by**: `size * 4` bytes (IEEE 754 32-bit float literals) |
+| 37 | `AddVec` | `u[N] v[N]` → `(u + v)[N]` | Componentwise vector addition | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 38 | `SubVec` | `u[N] v[N]` → `(u - v)[N]` | Componentwise vector subtraction | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 39 | `MulVec` | `u[N] v[N]` → `(u * v)[N]` | Componentwise vector multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 40 | `DivVec` | `u[N] v[N]` → `(u / v)[N]` | Componentwise vector division | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 41 | `NegVec` | `v[N]` → `(-v)[N]` | Componentwise vector negation | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 42 | `InvVec` | `v[N]` → `(1 / v)[N]` | Componentwise vector reciprocal | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 43 | `DotVec` | `u[N] v[N]` → `(u · v)` | Vector dot product | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 44 | `NormSqVec` | `v[N]` → `\|\|v\|\|^2` | Squared Euclidean norm $\|v\|^2$ | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 45 | `SumVec` | `v[N]` → `sum(v)` | Sum of vector components | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 46 | `MulAddVec` | `a[N] b[N] c[N]` → `(a * b + c)[N]` | Componentwise fused multiply-add | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 47 | `MulSubVec` | `a[N] b[N] c[N]` → `(a * b - c)[N]` | Componentwise fused multiply-subtract | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 48 | `SubMulVec` | `c[N] a[N] b[N]` → `(c - a * b)[N]` | Componentwise fused subtract-multiply | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 49 | `ScaleVec` | `v[N] s` → `(s * v)[N]` | Vector scalar multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 50 | `LerpVec` | `t` → `((1 - t)*v0 + t*v1)[N]` | Linear interpolation between two immediate vectors for scalar $t$ | **1 byte dimension**:<br>• `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$)<br>**Followed by**: `2 * size * 4` bytes of IEEE 754 32-bit floats (interleaved component pairs: $v_{0,0}, v_{1,0}, v_{0,1}, v_{1,1}, \dots, v_{0,N-1}, v_{1,N-1}$) |
+| 51 | `MulMat` | `v[rows]` → `(v * M)[cols]` | Vector-matrix multiplication $w = v \cdot M$ with immediate matrix $M$ | **1 byte dimension**:<br>• `[1:0]`: `rows - 1` (0..3 for 1..4 input dimensions / rows in $M$)<br>• `[3:2]`: Reserved (must be 0)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions / cols in $M$)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit floats ($M$ in column-major order: column by column) |
+| 52 | `Poly` | `t` → `P(t)[cols]` | Polynomial evaluation for scalar $t$ with immediate coefficients | **1 byte dimension**:<br>• `[3:0]`: `rows - 1` (0..15 for 1..16 coefficients per column / degree + 1)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit float coefficients (degree by degree from highest order down to constant term: for each degree, column 0 to cols-1) |
 
 ### Embedded Memory & Acceleration Flags (C++)
 

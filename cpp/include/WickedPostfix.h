@@ -66,42 +66,42 @@ typedef enum WickedPostfixOp {
   WickedPostfixOp_Sub       = 14,
   WickedPostfixOp_Mul       = 15,
   WickedPostfixOp_Div       = 16,
-  WickedPostfixOp_Pow       = 17,
-  WickedPostfixOp_Atan2     = 18,
-  WickedPostfixOp_Neg       = 19,
-  WickedPostfixOp_Abs       = 20,
-  WickedPostfixOp_Inv       = 21,
-  WickedPostfixOp_Sqrt      = 22,
+  WickedPostfixOp_Neg       = 17,
+  WickedPostfixOp_Abs       = 18,
+  WickedPostfixOp_Inv       = 19,
+  WickedPostfixOp_Sqrt      = 20,
+  WickedPostfixOp_Ipow      = 21,
+  WickedPostfixOp_Pow       = 22,
   WickedPostfixOp_Exp       = 23,
   WickedPostfixOp_Ln        = 24,
   WickedPostfixOp_Sin       = 25,
   WickedPostfixOp_Cos       = 26,
-  WickedPostfixOp_Tan       = 27,
-  WickedPostfixOp_Asin      = 28,
-  WickedPostfixOp_Acos      = 29,
-  WickedPostfixOp_Ipow      = 30,
-  WickedPostfixOp_MulAdd    = 31,
-  WickedPostfixOp_MulSub    = 32,
-  WickedPostfixOp_SubMul    = 33,
-  WickedPostfixOp_PushVec   = 34,
-  WickedPostfixOp_AddVec    = 35,
-  WickedPostfixOp_SubVec    = 36,
-  WickedPostfixOp_MulVec    = 37,
-  WickedPostfixOp_DivVec    = 38,
-  WickedPostfixOp_NegVec    = 39,
-  WickedPostfixOp_InvVec    = 40,
-  WickedPostfixOp_DotVec    = 41,
-  WickedPostfixOp_NormSqVec = 42,
-  WickedPostfixOp_SumVec    = 43,
-  WickedPostfixOp_MulAddVec = 44,
-  WickedPostfixOp_MulSubVec = 45,
-  WickedPostfixOp_SubMulVec = 46,
-  WickedPostfixOp_ScaleVec  = 47,
-  WickedPostfixOp_LerpVec   = 48,
-  WickedPostfixOp_MulMat    = 49,
-  WickedPostfixOp_Poly      = 50,
-  WickedPostfixOp_CosSin    = 51,
-  WickedPostfixOp_PanTilt   = 52,
+  WickedPostfixOp_CosSin    = 27,
+  WickedPostfixOp_Atan2     = 28,
+  WickedPostfixOp_PanTilt   = 29,
+  WickedPostfixOp_Tan       = 30,
+  WickedPostfixOp_Asin      = 31,
+  WickedPostfixOp_Acos      = 32,
+  WickedPostfixOp_MulAdd    = 33,
+  WickedPostfixOp_MulSub    = 34,
+  WickedPostfixOp_SubMul    = 35,
+  WickedPostfixOp_PushVec   = 36,
+  WickedPostfixOp_AddVec    = 37,
+  WickedPostfixOp_SubVec    = 38,
+  WickedPostfixOp_MulVec    = 39,
+  WickedPostfixOp_DivVec    = 40,
+  WickedPostfixOp_NegVec    = 41,
+  WickedPostfixOp_InvVec    = 42,
+  WickedPostfixOp_DotVec    = 43,
+  WickedPostfixOp_NormSqVec = 44,
+  WickedPostfixOp_SumVec    = 45,
+  WickedPostfixOp_MulAddVec = 46,
+  WickedPostfixOp_MulSubVec = 47,
+  WickedPostfixOp_SubMulVec = 48,
+  WickedPostfixOp_ScaleVec  = 49,
+  WickedPostfixOp_LerpVec   = 50,
+  WickedPostfixOp_MulMat    = 51,
+  WickedPostfixOp_Poly      = 52,
 } WickedPostfixOp_t;
 
 // Returns the string representation of an opcode.
@@ -186,34 +186,9 @@ class WickedPostfixWriter {
     EmitFloat(value);
   }
 
-  // Pushes multiple float literals onto the stack ( -> values...).
-  // Operand constraints:
-  //   - values.size(): 1 to 255
-  void PushVec(std::span<const float> values) {
-    assert(values.size() >= 1 && values.size() <= 255);
-    EmitOp(WickedPostfixOp_PushVec);
-    EmitByte(static_cast<uint8_t>(values.size() - 1));
-    for (float value : values) EmitFloat(value);
-  }
-
-  // Pushes multiple float literals onto the stack ( -> values...).
-  void PushVec(std::initializer_list<float> values) {
-    PushVec(std::span<const float>(values));
-  }
-
-  // Drops the top value from the stack (a -> ).
-  void Drop() {
-    EmitOp(WickedPostfixOp_Drop);
-  }
-
   // Duplicates the top value on the stack (a -> a a).
   void Dup() {
     EmitOp(WickedPostfixOp_Dup);
-  }
-
-  // Swaps the top two values on the stack (a b -> b a).
-  void Swap() {
-    EmitOp(WickedPostfixOp_Swap);
   }
 
   // Copies the second value to the top (a b -> a b a).
@@ -226,9 +201,19 @@ class WickedPostfixWriter {
     EmitOp(WickedPostfixOp_Tuck);
   }
 
+  // Drops the top value from the stack (a -> ).
+  void Drop() {
+    EmitOp(WickedPostfixOp_Drop);
+  }
+
   // Drops the second value from the top (a b -> b).
   void Nip() {
     EmitOp(WickedPostfixOp_Nip);
+  }
+
+  // Swaps the top two values on the stack (a b -> b a).
+  void Swap() {
+    EmitOp(WickedPostfixOp_Swap);
   }
 
   // Rotates third value to the top (a b c -> b c a).
@@ -236,19 +221,19 @@ class WickedPostfixWriter {
     EmitOp(WickedPostfixOp_Rot);
   }
 
-  // Copies a subvector from stack depth offset to the top (... v ... -> ... v ... v).
-  void Copy(uint8_t offset, uint8_t size = 1) {
-    assert(offset <= 31);
-    assert(size >= 1 && size <= 8);
-    EmitOp(WickedPostfixOp_Copy);
-    EmitByte((offset & 0x1F) | ((size - 1) << 5));
-  }
-
   // Moves / rotates a subvector from stack depth offset to the top (... v ... -> ... ... v).
   void Move(uint8_t offset, uint8_t size = 1) {
     assert(offset <= 31);
     assert(size >= 1 && size <= 8);
     EmitOp(WickedPostfixOp_Move);
+    EmitByte((offset & 0x1F) | ((size - 1) << 5));
+  }
+
+  // Copies a subvector from stack depth offset to the top (... v ... -> ... v ... v).
+  void Copy(uint8_t offset, uint8_t size = 1) {
+    assert(offset <= 31);
+    assert(size >= 1 && size <= 8);
+    EmitOp(WickedPostfixOp_Copy);
     EmitByte((offset & 0x1F) | ((size - 1) << 5));
   }
 
@@ -280,12 +265,6 @@ class WickedPostfixWriter {
   // Pops rhs and lhs and pushes lhs / rhs (a b -> a / b).
   void Div() { EmitOp(WickedPostfixOp_Div); }
 
-  // Pops rhs and lhs and pushes lhs^rhs (a b -> a ^ b).
-  void Pow() { EmitOp(WickedPostfixOp_Pow); }
-
-  // Pops y and x and pushes atan2(y, x) (x y -> atan2(y, x)).
-  void Atan2() { EmitOp(WickedPostfixOp_Atan2); }
-
   // Negates the top value (a -> -a).
   void Neg() { EmitOp(WickedPostfixOp_Neg); }
 
@@ -297,6 +276,15 @@ class WickedPostfixWriter {
 
   // Square root of top value (a -> sqrt(a)).
   void Sqrt() { EmitOp(WickedPostfixOp_Sqrt); }
+
+  // Raises the top value to the integer exponent exp (a -> a ^ exp).
+  void Ipow(int8_t exp) {
+    EmitOp(WickedPostfixOp_Ipow);
+    EmitByte(static_cast<uint8_t>(exp));
+  }
+
+  // Pops rhs and lhs and pushes lhs^rhs (a b -> a ^ b).
+  void Pow() { EmitOp(WickedPostfixOp_Pow); }
 
   // Exponential e^a of top value (a -> exp(a)).
   void Exp() { EmitOp(WickedPostfixOp_Exp); }
@@ -310,6 +298,15 @@ class WickedPostfixWriter {
   // Cosine of top value (a -> cos(a)).
   void Cos() { EmitOp(WickedPostfixOp_Cos); }
 
+  // Replaces t with cos(t) and pushes sin(t) (t -> cos(t) sin(t)).
+  void CosSin() { EmitOp(WickedPostfixOp_CosSin); }
+
+  // Pops y and x and pushes atan2(y, x) (x y -> atan2(y, x)).
+  void Atan2() { EmitOp(WickedPostfixOp_Atan2); }
+
+  // Transforms a 3D line-of-sight vector [v0, v1, v2] into [pan, tilt] (v[3] -> pan tilt).
+  void PanTilt() { EmitOp(WickedPostfixOp_PanTilt); }
+
   // Tangent of top value (a -> tan(a)).
   void Tan() { EmitOp(WickedPostfixOp_Tan); }
 
@@ -319,18 +316,6 @@ class WickedPostfixWriter {
   // Arc cosine of top value (a -> acos(a)).
   void Acos() { EmitOp(WickedPostfixOp_Acos); }
 
-  // Replaces t with cos(t) and pushes sin(t) (t -> cos(t) sin(t)).
-  void CosSin() { EmitOp(WickedPostfixOp_CosSin); }
-
-  // Transforms a 3D line-of-sight vector [v0, v1, v2] into [pan, tilt] (v[3] -> pan tilt).
-  void PanTilt() { EmitOp(WickedPostfixOp_PanTilt); }
-
-  // Raises the top value to the integer exponent exp (a -> a ^ exp).
-  void Ipow(int8_t exp) {
-    EmitOp(WickedPostfixOp_Ipow);
-    EmitByte(static_cast<uint8_t>(exp));
-  }
-
   // Pops c, b, a and pushes a*b + c (a b c -> a * b + c).
   void MulAdd() { EmitOp(WickedPostfixOp_MulAdd); }
 
@@ -339,6 +324,21 @@ class WickedPostfixWriter {
 
   // Pops b, a, c and pushes c - a*b (c a b -> c - a * b).
   void SubMul() { EmitOp(WickedPostfixOp_SubMul); }
+
+  // Pushes multiple float literals onto the stack ( -> values...).
+  // Operand constraints:
+  //   - values.size(): 1 to 255
+  void PushVec(std::span<const float> values) {
+    assert(values.size() >= 1 && values.size() <= 255);
+    EmitOp(WickedPostfixOp_PushVec);
+    EmitByte(static_cast<uint8_t>(values.size() - 1));
+    for (float value : values) EmitFloat(value);
+  }
+
+  // Pushes multiple float literals onto the stack ( -> values...).
+  void PushVec(std::initializer_list<float> values) {
+    PushVec(std::span<const float>(values));
+  }
 
   // Adds two vectors componentwise (u[N] v[N] -> (u + v)[N]).
   void AddVec(uint8_t size) {

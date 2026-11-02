@@ -47,42 +47,42 @@ const (
 	Operation_Sub        Operation = 14
 	Operation_Mul        Operation = 15
 	Operation_Div        Operation = 16
-	Operation_Pow        Operation = 17
-	Operation_Atan2      Operation = 18
-	Operation_Neg        Operation = 19
-	Operation_Abs        Operation = 20
-	Operation_Inv        Operation = 21
-	Operation_Sqrt       Operation = 22
+	Operation_Neg        Operation = 17
+	Operation_Abs        Operation = 18
+	Operation_Inv        Operation = 19
+	Operation_Sqrt       Operation = 20
+	Operation_Ipow       Operation = 21
+	Operation_Pow        Operation = 22
 	Operation_Exp        Operation = 23
 	Operation_Ln         Operation = 24
 	Operation_Sin        Operation = 25
 	Operation_Cos        Operation = 26
-	Operation_Tan        Operation = 27
-	Operation_Asin       Operation = 28
-	Operation_Acos       Operation = 29
-	Operation_Ipow       Operation = 30
-	Operation_MulAdd     Operation = 31
-	Operation_MulSub     Operation = 32
-	Operation_SubMul     Operation = 33
-	Operation_PushVec    Operation = 34
-	Operation_AddVec     Operation = 35
-	Operation_SubVec     Operation = 36
-	Operation_MulVec     Operation = 37
-	Operation_DivVec     Operation = 38
-	Operation_NegVec     Operation = 39
-	Operation_InvVec     Operation = 40
-	Operation_DotVec     Operation = 41
-	Operation_NormSqVec  Operation = 42
-	Operation_SumVec     Operation = 43
-	Operation_MulAddVec  Operation = 44
-	Operation_MulSubVec  Operation = 45
-	Operation_SubMulVec  Operation = 46
-	Operation_ScaleVec   Operation = 47
-	Operation_LerpVec    Operation = 48
-	Operation_MulMat     Operation = 49
-	Operation_Poly       Operation = 50
-	Operation_CosSin     Operation = 51
-	Operation_PanTilt    Operation = 52
+	Operation_CosSin     Operation = 27
+	Operation_Atan2      Operation = 28
+	Operation_PanTilt    Operation = 29
+	Operation_Tan        Operation = 30
+	Operation_Asin       Operation = 31
+	Operation_Acos       Operation = 32
+	Operation_MulAdd     Operation = 33
+	Operation_MulSub     Operation = 34
+	Operation_SubMul     Operation = 35
+	Operation_PushVec    Operation = 36
+	Operation_AddVec     Operation = 37
+	Operation_SubVec     Operation = 38
+	Operation_MulVec     Operation = 39
+	Operation_DivVec     Operation = 40
+	Operation_NegVec     Operation = 41
+	Operation_InvVec     Operation = 42
+	Operation_DotVec     Operation = 43
+	Operation_NormSqVec  Operation = 44
+	Operation_SumVec     Operation = 45
+	Operation_MulAddVec  Operation = 46
+	Operation_MulSubVec  Operation = 47
+	Operation_SubMulVec  Operation = 48
+	Operation_ScaleVec   Operation = 49
+	Operation_LerpVec    Operation = 50
+	Operation_MulMat     Operation = 51
+	Operation_Poly       Operation = 52
 )
 
 // Expression represents an immutable bytecode sequence of postfix operations.
@@ -132,10 +132,6 @@ func (op Operation) String() string {
 		return "Mul"
 	case Operation_Div:
 		return "Div"
-	case Operation_Pow:
-		return "Pow"
-	case Operation_Atan2:
-		return "Atan2"
 	case Operation_Neg:
 		return "Neg"
 	case Operation_Abs:
@@ -144,6 +140,10 @@ func (op Operation) String() string {
 		return "Inv"
 	case Operation_Sqrt:
 		return "Sqrt"
+	case Operation_Ipow:
+		return "Ipow"
+	case Operation_Pow:
+		return "Pow"
 	case Operation_Exp:
 		return "Exp"
 	case Operation_Ln:
@@ -152,14 +152,18 @@ func (op Operation) String() string {
 		return "Sin"
 	case Operation_Cos:
 		return "Cos"
+	case Operation_CosSin:
+		return "CosSin"
+	case Operation_Atan2:
+		return "Atan2"
+	case Operation_PanTilt:
+		return "PanTilt"
 	case Operation_Tan:
 		return "Tan"
 	case Operation_Asin:
 		return "Asin"
 	case Operation_Acos:
 		return "Acos"
-	case Operation_Ipow:
-		return "Ipow"
 	case Operation_MulAdd:
 		return "MulAdd"
 	case Operation_MulSub:
@@ -200,10 +204,6 @@ func (op Operation) String() string {
 		return "MulMat"
 	case Operation_Poly:
 		return "Poly"
-	case Operation_CosSin:
-		return "CosSin"
-	case Operation_PanTilt:
-		return "PanTilt"
 	default:
 		return fmt.Sprintf("unknown[%d]", op)
 	}
@@ -281,36 +281,9 @@ func (b *Builder) Push(v float64) *Builder {
 	return b
 }
 
-// PushVec appends an Operation_PushVec instruction with the given 32-bit float vector literals ( -> values...).
-func (b *Builder) PushVec(values ...float64) *Builder {
-	if len(values) == 0 {
-		return b
-	}
-	if len(values) > 255 {
-		panic(fmt.Sprintf("PushVec size (%d) exceeds maximum of 255", len(values)))
-	}
-	b.expr.Prog = append(b.expr.Prog, uint8(Operation_PushVec), uint8(len(values)-1))
-	for _, v := range values {
-		b.expr.Prog = binary.LittleEndian.AppendUint32(b.expr.Prog, math.Float32bits(float32(v)))
-	}
-	return b
-}
-
-// Drop discards the top value from the stack (a -> ).
-func (b *Builder) Drop() *Builder {
-	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Drop))
-	return b
-}
-
 // Dup duplicates the top value on the stack (a -> a a).
 func (b *Builder) Dup() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Dup))
-	return b
-}
-
-// Swap exchanges the top two values on the stack (a b -> b a).
-func (b *Builder) Swap() *Builder {
-	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Swap))
 	return b
 }
 
@@ -326,15 +299,39 @@ func (b *Builder) Tuck() *Builder {
 	return b
 }
 
+// Drop discards the top value from the stack (a -> ).
+func (b *Builder) Drop() *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Drop))
+	return b
+}
+
 // Nip discards the second value from the top of the stack (a b -> b).
 func (b *Builder) Nip() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Nip))
 	return b
 }
 
+// Swap exchanges the top two values on the stack (a b -> b a).
+func (b *Builder) Swap() *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Swap))
+	return b
+}
+
 // Rot rotates the third value to the top of the stack (a b c -> b c a).
 func (b *Builder) Rot() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Rot))
+	return b
+}
+
+// Move rotates a subvector from stack depth offset to the top (... v ... -> ... ... v).
+func (b *Builder) Move(offset, size int) *Builder {
+	if offset < 0 || offset > 31 {
+		panic(fmt.Sprintf("Move offset (%d) must be in range [0, 31]", offset))
+	}
+	if size < 1 || size > 8 {
+		panic(fmt.Sprintf("Move size (%d) must be in range [1, 8]", size))
+	}
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Move), uint8((offset&0x1F)|((size-1)<<5)))
 	return b
 }
 
@@ -374,18 +371,6 @@ func (b *Builder) Slide(keep, drop int) *Builder {
 	return b
 }
 
-// Move rotates a subvector from stack depth offset to the top (... v ... -> ... ... v).
-func (b *Builder) Move(offset, size int) *Builder {
-	if offset < 0 || offset > 31 {
-		panic(fmt.Sprintf("Move offset (%d) must be in range [0, 31]", offset))
-	}
-	if size < 1 || size > 8 {
-		panic(fmt.Sprintf("Move size (%d) must be in range [1, 8]", size))
-	}
-	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Move), uint8((offset&0x1F)|((size-1)<<5)))
-	return b
-}
-
 // Add pops two values and pushes their sum (a b -> a + b).
 func (b *Builder) Add() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Add))
@@ -407,18 +392,6 @@ func (b *Builder) Mul() *Builder {
 // Div pops rhs and lhs and pushes lhs / rhs (a b -> a / b).
 func (b *Builder) Div() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Div))
-	return b
-}
-
-// Pow pops rhs and lhs and pushes lhs raised to the power of rhs (a b -> a ^ b).
-func (b *Builder) Pow() *Builder {
-	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Pow))
-	return b
-}
-
-// Atan2 pops y and x and pushes atan2(y, x) (x y -> atan2(y, x)).
-func (b *Builder) Atan2() *Builder {
-	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Atan2))
 	return b
 }
 
@@ -446,6 +419,18 @@ func (b *Builder) Sqrt() *Builder {
 	return b
 }
 
+// Ipow raises the top value on the stack to the integer exponent exp (a -> a ^ exp).
+func (b *Builder) Ipow(exp int8) *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Ipow), uint8(exp))
+	return b
+}
+
+// Pow pops rhs and lhs and pushes lhs raised to the power of rhs (a b -> a ^ b).
+func (b *Builder) Pow() *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Pow))
+	return b
+}
+
 // Exp replaces the top value on the stack with e^a (a -> exp(a)).
 func (b *Builder) Exp() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Exp))
@@ -470,6 +455,24 @@ func (b *Builder) Cos() *Builder {
 	return b
 }
 
+// CosSin replaces the top value t on the stack with cos(t) and pushes sin(t) (t -> cos(t) sin(t)).
+func (b *Builder) CosSin() *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_CosSin))
+	return b
+}
+
+// Atan2 pops y and x and pushes atan2(y, x) (x y -> atan2(y, x)).
+func (b *Builder) Atan2() *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Atan2))
+	return b
+}
+
+// PanTilt transforms a 3D line-of-sight vector [v0, v1, v2] on the stack into [pan, tilt] (v[3] -> pan tilt).
+func (b *Builder) PanTilt() *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_PanTilt))
+	return b
+}
+
 // Tan replaces the top value on the stack with tan(a) (a -> tan(a)).
 func (b *Builder) Tan() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Tan))
@@ -488,24 +491,6 @@ func (b *Builder) Acos() *Builder {
 	return b
 }
 
-// CosSin replaces the top value t on the stack with cos(t) and pushes sin(t) (t -> cos(t) sin(t)).
-func (b *Builder) CosSin() *Builder {
-	b.expr.Prog = append(b.expr.Prog, uint8(Operation_CosSin))
-	return b
-}
-
-// PanTilt transforms a 3D line-of-sight vector [v0, v1, v2] on the stack into [pan, tilt] (v[3] -> pan tilt).
-func (b *Builder) PanTilt() *Builder {
-	b.expr.Prog = append(b.expr.Prog, uint8(Operation_PanTilt))
-	return b
-}
-
-// Ipow raises the top value on the stack to the integer exponent exp (a -> a ^ exp).
-func (b *Builder) Ipow(exp int8) *Builder {
-	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Ipow), uint8(exp))
-	return b
-}
-
 // MulAdd pops c, b, a and pushes a*b + c (a b c -> a * b + c).
 func (b *Builder) MulAdd() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_MulAdd))
@@ -521,6 +506,21 @@ func (b *Builder) MulSub() *Builder {
 // SubMul pops b, a, c and pushes c - a*b (c a b -> c - a * b).
 func (b *Builder) SubMul() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_SubMul))
+	return b
+}
+
+// PushVec appends an Operation_PushVec instruction with the given 32-bit float vector literals ( -> values...).
+func (b *Builder) PushVec(values ...float64) *Builder {
+	if len(values) == 0 {
+		return b
+	}
+	if len(values) > 255 {
+		panic(fmt.Sprintf("PushVec size (%d) exceeds maximum of 255", len(values)))
+	}
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_PushVec), uint8(len(values)-1))
+	for _, v := range values {
+		b.expr.Prog = binary.LittleEndian.AppendUint32(b.expr.Prog, math.Float32bits(float32(v)))
+	}
 	return b
 }
 
@@ -773,33 +773,12 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 			pc += 4
 			stackLen += 1
 			updateMax(stackLen)
-		case Operation_PushVec:
-			if avail() < 1 {
-				return 0, 0, nil, ErrIllegalOperation
-			}
-			size := fetchByte() + 1
-			byteCount := size * 4
-			if avail() < byteCount {
-				return 0, 0, nil, ErrIllegalOperation
-			}
-			pc += byteCount
-			stackLen += size
-			updateMax(stackLen)
-		case Operation_Drop:
-			if stackLen < 1 {
-				return 0, 0, nil, ErrStackUnderflow
-			}
-			stackLen -= 1
 		case Operation_Dup:
 			if stackLen < 1 {
 				return 0, 0, nil, ErrStackUnderflow
 			}
 			stackLen += 1
 			updateMax(stackLen)
-		case Operation_Swap:
-			if stackLen < 2 {
-				return 0, 0, nil, ErrStackUnderflow
-			}
 		case Operation_Over:
 			if stackLen < 2 {
 				return 0, 0, nil, ErrStackUnderflow
@@ -812,11 +791,20 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 			}
 			stackLen += 1
 			updateMax(stackLen)
+		case Operation_Drop:
+			if stackLen < 1 {
+				return 0, 0, nil, ErrStackUnderflow
+			}
+			stackLen -= 1
 		case Operation_Nip:
 			if stackLen < 2 {
 				return 0, 0, nil, ErrStackUnderflow
 			}
 			stackLen -= 1
+		case Operation_Swap:
+			if stackLen < 2 {
+				return 0, 0, nil, ErrStackUnderflow
+			}
 		case Operation_Rot:
 			if stackLen < 3 {
 				return 0, 0, nil, ErrStackUnderflow
@@ -866,12 +854,12 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 				return 0, 0, nil, ErrStackUnderflow
 			}
 			stackLen -= drop
-		case Operation_Add, Operation_Sub, Operation_Mul, Operation_Div, Operation_Pow, Operation_Atan2:
+		case Operation_Add, Operation_Sub, Operation_Mul, Operation_Div:
 			if stackLen < 2 {
 				return 0, 0, nil, ErrStackUnderflow
 			}
 			stackLen -= 1
-		case Operation_Neg, Operation_Abs, Operation_Inv, Operation_Sqrt, Operation_Exp, Operation_Ln, Operation_Sin, Operation_Cos, Operation_Tan, Operation_Asin, Operation_Acos:
+		case Operation_Neg, Operation_Abs, Operation_Inv, Operation_Sqrt:
 			if stackLen < 1 {
 				return 0, 0, nil, ErrStackUnderflow
 			}
@@ -883,11 +871,52 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 			if stackLen < 1 {
 				return 0, 0, nil, ErrStackUnderflow
 			}
+		case Operation_Pow:
+			if stackLen < 2 {
+				return 0, 0, nil, ErrStackUnderflow
+			}
+			stackLen -= 1
+		case Operation_Exp, Operation_Ln, Operation_Sin, Operation_Cos:
+			if stackLen < 1 {
+				return 0, 0, nil, ErrStackUnderflow
+			}
+		case Operation_CosSin:
+			if stackLen < 1 {
+				return 0, 0, nil, ErrStackUnderflow
+			}
+			stackLen += 1
+			updateMax(stackLen)
+		case Operation_Atan2:
+			if stackLen < 2 {
+				return 0, 0, nil, ErrStackUnderflow
+			}
+			stackLen -= 1
+		case Operation_PanTilt:
+			if stackLen < 3 {
+				return 0, 0, nil, ErrStackUnderflow
+			}
+			stackLen -= 1
+		case Operation_Tan, Operation_Asin, Operation_Acos:
+			if stackLen < 1 {
+				return 0, 0, nil, ErrStackUnderflow
+			}
 		case Operation_MulAdd, Operation_MulSub, Operation_SubMul:
 			if stackLen < 3 {
 				return 0, 0, nil, ErrStackUnderflow
 			}
 			stackLen -= 2
+		case Operation_PushVec:
+			if avail() < 1 {
+				return 0, 0, nil, ErrIllegalOperation
+			}
+			size := fetchByte() + 1
+			byteCount := size * 4
+			if avail() < byteCount {
+				return 0, 0, nil, ErrIllegalOperation
+			}
+			pc += byteCount
+			stackLen += size
+			updateMax(stackLen)
 		case Operation_AddVec, Operation_SubVec, Operation_MulVec, Operation_DivVec:
 			if avail() < 1 {
 				return 0, 0, nil, ErrIllegalOperation
@@ -994,17 +1023,6 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 			}
 			stackLen = stackLen - 1 + cols
 			updateMax(stackLen)
-		case Operation_CosSin:
-			if stackLen < 1 {
-				return 0, 0, nil, ErrStackUnderflow
-			}
-			stackLen += 1
-			updateMax(stackLen)
-		case Operation_PanTilt:
-			if stackLen < 3 {
-				return 0, 0, nil, ErrStackUnderflow
-			}
-			stackLen -= 1
 		default:
 			return 0, 0, nil, ErrUndefinedOperation
 		}
@@ -1074,18 +1092,8 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 		switch op {
 		case Operation_Push:
 			stack = append(stack, fetchFloat())
-		case Operation_PushVec:
-			size := int(fetchByte()) + 1
-			for range size {
-				stack = append(stack, fetchFloat())
-			}
-		case Operation_Drop:
-			stack = stack[:len(stack)-1]
 		case Operation_Dup:
 			stack = append(stack, stack[len(stack)-1])
-		case Operation_Swap:
-			i := len(stack) - 1
-			stack[i], stack[i-1] = stack[i-1], stack[i]
 		case Operation_Over:
 			stack = append(stack, stack[len(stack)-2])
 		case Operation_Tuck:
@@ -1093,9 +1101,14 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 			stack[len(stack)-1] = stack[len(stack)-2]
 			stack[len(stack)-2] = top
 			stack = append(stack, top)
+		case Operation_Drop:
+			stack = stack[:len(stack)-1]
 		case Operation_Nip:
 			stack[len(stack)-2] = stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
+		case Operation_Swap:
+			i := len(stack) - 1
+			stack[i], stack[i-1] = stack[i-1], stack[i]
 		case Operation_Rot:
 			i := len(stack) - 1
 			b := stack[i-2]
@@ -1147,14 +1160,6 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 			rhs := pop()
 			lhs := pop()
 			stack = append(stack, lhs/rhs)
-		case Operation_Pow:
-			rhs := pop()
-			lhs := pop()
-			stack = append(stack, math.Pow(lhs, rhs))
-		case Operation_Atan2:
-			y := pop()
-			x := pop()
-			stack = append(stack, math.Atan2(y, x))
 		case Operation_Neg:
 			v := pop()
 			stack = append(stack, -v)
@@ -1167,6 +1172,14 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 		case Operation_Sqrt:
 			v := pop()
 			stack = append(stack, math.Sqrt(v))
+		case Operation_Ipow:
+			exp := int8(fetchByte())
+			v := pop()
+			stack = append(stack, ipow(v, int(exp)))
+		case Operation_Pow:
+			rhs := pop()
+			lhs := pop()
+			stack = append(stack, math.Pow(lhs, rhs))
 		case Operation_Exp:
 			v := pop()
 			stack = append(stack, math.Exp(v))
@@ -1179,6 +1192,20 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 		case Operation_Cos:
 			v := pop()
 			stack = append(stack, math.Cos(v))
+		case Operation_CosSin:
+			t := pop()
+			s, c := math.Sincos(t)
+			stack = append(stack, c, s)
+		case Operation_Atan2:
+			y := pop()
+			x := pop()
+			stack = append(stack, math.Atan2(y, x))
+		case Operation_PanTilt:
+			v2 := pop()
+			v1 := pop()
+			v0 := pop()
+			r := math.Sqrt(v0*v0 + v1*v1)
+			stack = append(stack, math.Atan2(v1, v0), math.Atan2(v2, r))
 		case Operation_Tan:
 			v := pop()
 			stack = append(stack, math.Tan(v))
@@ -1188,10 +1215,6 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 		case Operation_Acos:
 			v := pop()
 			stack = append(stack, math.Acos(v))
-		case Operation_Ipow:
-			exp := int8(fetchByte())
-			v := pop()
-			stack = append(stack, ipow(v, int(exp)))
 		case Operation_MulAdd:
 			c := pop()
 			b := pop()
@@ -1207,6 +1230,11 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 			a := pop()
 			c := pop()
 			stack = append(stack, c-a*b)
+		case Operation_PushVec:
+			size := int(fetchByte()) + 1
+			for range size {
+				stack = append(stack, fetchFloat())
+			}
 		case Operation_AddVec:
 			size := fetchByte() + 1
 			rhs := popv(size)
@@ -1347,16 +1375,6 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 				}
 				stack = append(stack, result...)
 			}
-		case Operation_CosSin:
-			t := pop()
-			s, c := math.Sincos(t)
-			stack = append(stack, c, s)
-		case Operation_PanTilt:
-			v2 := pop()
-			v1 := pop()
-			v0 := pop()
-			r := math.Sqrt(v0*v0 + v1*v1)
-			stack = append(stack, math.Atan2(v1, v0), math.Atan2(v2, r))
 		}
 	}
 	return stack
