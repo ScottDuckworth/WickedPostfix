@@ -62,41 +62,42 @@ typedef enum WickedPostfixOp {
   WickedPostfixOp_Sub       = 14,
   WickedPostfixOp_Mul       = 15,
   WickedPostfixOp_Div       = 16,
-  WickedPostfixOp_Neg       = 17,
-  WickedPostfixOp_Abs       = 18,
-  WickedPostfixOp_Inv       = 19,
-  WickedPostfixOp_Sqrt      = 20,
-  WickedPostfixOp_Ipow      = 21,
-  WickedPostfixOp_Pow       = 22,
-  WickedPostfixOp_Exp       = 23,
-  WickedPostfixOp_Ln        = 24,
-  WickedPostfixOp_Sin       = 25,
-  WickedPostfixOp_Cos       = 26,
-  WickedPostfixOp_CosSin    = 27,
-  WickedPostfixOp_Tan       = 28,
-  WickedPostfixOp_Asin      = 29,
-  WickedPostfixOp_Acos      = 30,
-  WickedPostfixOp_Atan2     = 31,
-  WickedPostfixOp_PanTilt   = 32,
-  WickedPostfixOp_MulAdd    = 33,
-  WickedPostfixOp_MulSub    = 34,
-  WickedPostfixOp_SubMul    = 35,
+  WickedPostfixOp_MulAdd    = 17,
+  WickedPostfixOp_MulSub    = 18,
+  WickedPostfixOp_SubMul    = 19,
+  WickedPostfixOp_Neg       = 20,
+  WickedPostfixOp_Abs       = 21,
+  WickedPostfixOp_Inv       = 22,
+  WickedPostfixOp_Sqrt      = 23,
+  WickedPostfixOp_Sin       = 24,
+  WickedPostfixOp_Cos       = 25,
+  WickedPostfixOp_Tan       = 26,
+  WickedPostfixOp_Asin      = 27,
+  WickedPostfixOp_Acos      = 28,
+  WickedPostfixOp_Atan2     = 29,
+  WickedPostfixOp_CosSin    = 30,
+  WickedPostfixOp_PanTilt   = 31,
+  WickedPostfixOp_Ipow      = 32,
+  WickedPostfixOp_Pow       = 33,
+  WickedPostfixOp_Exp       = 34,
+  WickedPostfixOp_Ln        = 35,
   WickedPostfixOp_PushVec   = 36,
   WickedPostfixOp_AddVec    = 37,
   WickedPostfixOp_SubVec    = 38,
   WickedPostfixOp_MulVec    = 39,
   WickedPostfixOp_DivVec    = 40,
-  WickedPostfixOp_NegVec    = 41,
-  WickedPostfixOp_InvVec    = 42,
-  WickedPostfixOp_DotVec    = 43,
-  WickedPostfixOp_NormSqVec = 44,
-  WickedPostfixOp_SumVec    = 45,
-  WickedPostfixOp_MulAddVec = 46,
-  WickedPostfixOp_MulSubVec = 47,
-  WickedPostfixOp_SubMulVec = 48,
-  WickedPostfixOp_ScaleVec  = 49,
-  WickedPostfixOp_MulMat    = 50,
-  WickedPostfixOp_Poly      = 51,
+  WickedPostfixOp_MulAddVec = 41,
+  WickedPostfixOp_MulSubVec = 42,
+  WickedPostfixOp_SubMulVec = 43,
+  WickedPostfixOp_NegVec    = 44,
+  WickedPostfixOp_AbsVec    = 45,
+  WickedPostfixOp_InvVec    = 46,
+  WickedPostfixOp_DotVec    = 47,
+  WickedPostfixOp_NormSqVec = 48,
+  WickedPostfixOp_SumVec    = 49,
+  WickedPostfixOp_ScaleVec  = 50,
+  WickedPostfixOp_MulMat    = 51,
+  WickedPostfixOp_Poly      = 52,
 } WickedPostfixOp_t;
 
 // Returns the string representation of an opcode.
@@ -260,6 +261,15 @@ class WickedPostfixWriter {
   // Pops rhs and lhs and pushes lhs / rhs (a b -> a / b).
   void Div() { EmitOp(WickedPostfixOp_Div); }
 
+  // Pops c, b, a and pushes a*b + c (a b c -> a * b + c).
+  void MulAdd() { EmitOp(WickedPostfixOp_MulAdd); }
+
+  // Pops c, b, a and pushes a*b - c (a b c -> a * b - c).
+  void MulSub() { EmitOp(WickedPostfixOp_MulSub); }
+
+  // Pops b, a, c and pushes c - a*b (c a b -> c - a * b).
+  void SubMul() { EmitOp(WickedPostfixOp_SubMul); }
+
   // Negates the top value (a -> -a).
   void Neg() { EmitOp(WickedPostfixOp_Neg); }
 
@@ -271,6 +281,30 @@ class WickedPostfixWriter {
 
   // Square root of top value (a -> sqrt(a)).
   void Sqrt() { EmitOp(WickedPostfixOp_Sqrt); }
+
+  // Sine of top value (a -> sin(a)).
+  void Sin() { EmitOp(WickedPostfixOp_Sin); }
+
+  // Cosine of top value (a -> cos(a)).
+  void Cos() { EmitOp(WickedPostfixOp_Cos); }
+
+  // Tangent of top value (a -> tan(a)).
+  void Tan() { EmitOp(WickedPostfixOp_Tan); }
+
+  // Arc sine of top value (a -> asin(a)).
+  void Asin() { EmitOp(WickedPostfixOp_Asin); }
+
+  // Arc cosine of top value (a -> acos(a)).
+  void Acos() { EmitOp(WickedPostfixOp_Acos); }
+
+  // Pops y and x and pushes atan2(y, x) (x y -> atan2(y, x)).
+  void Atan2() { EmitOp(WickedPostfixOp_Atan2); }
+
+  // Replaces t with cos(t) and pushes sin(t) (t -> cos(t) sin(t)).
+  void CosSin() { EmitOp(WickedPostfixOp_CosSin); }
+
+  // Transforms a 3D line-of-sight vector [v0, v1, v2] into [pan, tilt] (v[3] -> pan tilt).
+  void PanTilt() { EmitOp(WickedPostfixOp_PanTilt); }
 
   // Raises the top value to the integer exponent exp (a -> a ^ exp).
   void Ipow(int8_t exp) {
@@ -286,39 +320,6 @@ class WickedPostfixWriter {
 
   // Natural logarithm ln(a) of top value (a -> ln(a)).
   void Ln() { EmitOp(WickedPostfixOp_Ln); }
-
-  // Sine of top value (a -> sin(a)).
-  void Sin() { EmitOp(WickedPostfixOp_Sin); }
-
-  // Cosine of top value (a -> cos(a)).
-  void Cos() { EmitOp(WickedPostfixOp_Cos); }
-
-  // Replaces t with cos(t) and pushes sin(t) (t -> cos(t) sin(t)).
-  void CosSin() { EmitOp(WickedPostfixOp_CosSin); }
-
-  // Tangent of top value (a -> tan(a)).
-  void Tan() { EmitOp(WickedPostfixOp_Tan); }
-
-  // Arc sine of top value (a -> asin(a)).
-  void Asin() { EmitOp(WickedPostfixOp_Asin); }
-
-  // Arc cosine of top value (a -> acos(a)).
-  void Acos() { EmitOp(WickedPostfixOp_Acos); }
-
-  // Pops y and x and pushes atan2(y, x) (x y -> atan2(y, x)).
-  void Atan2() { EmitOp(WickedPostfixOp_Atan2); }
-
-  // Transforms a 3D line-of-sight vector [v0, v1, v2] into [pan, tilt] (v[3] -> pan tilt).
-  void PanTilt() { EmitOp(WickedPostfixOp_PanTilt); }
-
-  // Pops c, b, a and pushes a*b + c (a b c -> a * b + c).
-  void MulAdd() { EmitOp(WickedPostfixOp_MulAdd); }
-
-  // Pops c, b, a and pushes a*b - c (a b c -> a * b - c).
-  void MulSub() { EmitOp(WickedPostfixOp_MulSub); }
-
-  // Pops b, a, c and pushes c - a*b (c a b -> c - a * b).
-  void SubMul() { EmitOp(WickedPostfixOp_SubMul); }
 
   // Pushes multiple float literals onto the stack ( -> values...).
   // Operand constraints:
@@ -363,10 +364,38 @@ class WickedPostfixWriter {
     EmitByte(size - 1);
   }
 
+  // Componentwise fused multiply-add (a[N] b[N] c[N] -> (a * b + c)[N]).
+  void MulAddVec(uint8_t size) {
+    assert(size > 0);
+    EmitOp(WickedPostfixOp_MulAddVec);
+    EmitByte(size - 1);
+  }
+
+  // Componentwise fused multiply-subtract (a[N] b[N] c[N] -> (a * b - c)[N]).
+  void MulSubVec(uint8_t size) {
+    assert(size > 0);
+    EmitOp(WickedPostfixOp_MulSubVec);
+    EmitByte(size - 1);
+  }
+
+  // Componentwise fused subtract-multiply (c[N] a[N] b[N] -> (c - a * b)[N]).
+  void SubMulVec(uint8_t size) {
+    assert(size > 0);
+    EmitOp(WickedPostfixOp_SubMulVec);
+    EmitByte(size - 1);
+  }
+
   // Negates each component of vector (v[N] -> (-v)[N]).
   void NegVec(uint8_t size) {
     assert(size > 0);
     EmitOp(WickedPostfixOp_NegVec);
+    EmitByte(size - 1);
+  }
+
+  // Absolute value of each component of vector (v[N] -> |v|[N]).
+  void AbsVec(uint8_t size) {
+    assert(size > 0);
+    EmitOp(WickedPostfixOp_AbsVec);
     EmitByte(size - 1);
   }
 
@@ -395,27 +424,6 @@ class WickedPostfixWriter {
   void SumVec(uint8_t size) {
     assert(size > 0);
     EmitOp(WickedPostfixOp_SumVec);
-    EmitByte(size - 1);
-  }
-
-  // Componentwise fused multiply-add (a[N] b[N] c[N] -> (a * b + c)[N]).
-  void MulAddVec(uint8_t size) {
-    assert(size > 0);
-    EmitOp(WickedPostfixOp_MulAddVec);
-    EmitByte(size - 1);
-  }
-
-  // Componentwise fused multiply-subtract (a[N] b[N] c[N] -> (a * b - c)[N]).
-  void MulSubVec(uint8_t size) {
-    assert(size > 0);
-    EmitOp(WickedPostfixOp_MulSubVec);
-    EmitByte(size - 1);
-  }
-
-  // Componentwise fused subtract-multiply (c[N] a[N] b[N] -> (c - a * b)[N]).
-  void SubMulVec(uint8_t size) {
-    assert(size > 0);
-    EmitOp(WickedPostfixOp_SubMulVec);
     EmitByte(size - 1);
   }
 

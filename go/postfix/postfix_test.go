@@ -693,6 +693,18 @@ func TestEvalPostfixExpression(t *testing.T) {
 			wantErr: postfix.ErrStackUnderflow,
 		},
 		{
+			name:      "abs vector 3",
+			expr:      postfix.MakeBuilder().AbsVec(3).Build(),
+			stack:     []float64{1, -2, -3.5},
+			wantStack: []float64{1, 2, 3.5},
+		},
+		{
+			name:    "abs vector underflow",
+			expr:    postfix.MakeBuilder().AbsVec(3).Build(),
+			stack:   []float64{1, 2},
+			wantErr: postfix.ErrStackUnderflow,
+		},
+		{
 			name:      "invert vector 3",
 			expr:      postfix.MakeBuilder().InvVec(3).Build(),
 			stack:     []float64{2, 4, -0.5},

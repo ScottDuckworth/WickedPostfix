@@ -41,41 +41,42 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 | 14 | `Sub` | `a b` → `a - b` | Scalar subtraction | *None* |
 | 15 | `Mul` | `a b` → `a * b` | Scalar multiplication | *None* |
 | 16 | `Div` | `a b` → `a / b` | Scalar division | *None* |
-| 17 | `Neg` | `a` → `-a` | Scalar negation | *None* |
-| 18 | `Abs` | `a` → `\|a\|` | Scalar absolute value | *None* |
-| 19 | `Inv` | `a` → `1 / a` | Scalar reciprocal | *None* |
-| 20 | `Sqrt` | `a` → `sqrt(a)` | Square root | *None* |
-| 21 | `Ipow` | `a` → `a ^ exp` | Integer exponentiation | **1 byte**:<br>• `[7:0]`: `exp` (two's complement signed 8-bit int, -128..127) |
-| 22 | `Pow` | `a b` → `a ^ b` | Scalar power | *None* |
-| 23 | `Exp` | `a` → `exp(a)` | Exponential | *None* |
-| 24 | `Ln` | `a` → `ln(a)` | Natural logarithm | *None* |
-| 25 | `Sin` | `a` → `sin(a)` | Sine | *None* |
-| 26 | `Cos` | `a` → `cos(a)` | Cosine | *None* |
-| 27 | `CosSin` | `t` → `cos(t) sin(t)` | Simultaneous scalar cosine and sine evaluation | *None* |
-| 28 | `Tan` | `a` → `tan(a)` | Tangent | *None* |
-| 29 | `Asin` | `a` → `asin(a)` | Arc sine | *None* |
-| 30 | `Acos` | `a` → `acos(a)` | Arc cosine | *None* |
-| 31 | `Atan2` | `x y` → `atan2(y, x)` | Four-quadrant inverse tangent | *None* |
-| 32 | `PanTilt` | `v[3]` → `pan tilt` | Pan and tilt spherical angles from 3D line-of-sight vector $[v_0, v_1, v_2]$: $\text{pan} = \text{atan2}(v_1, v_0)$, $\text{tilt} = \text{atan2}(v_2, \sqrt{v_0^2 + v_1^2})$ | *None* |
-| 33 | `MulAdd` | `a b c` → `a * b + c` | Fused multiply-add | *None* |
-| 34 | `MulSub` | `a b c` → `a * b - c` | Fused multiply-subtract | *None* |
-| 35 | `SubMul` | `c a b` → `c - a * b` | Fused subtract-multiply | *None* |
+| 17 | `MulAdd` | `a b c` → `a * b + c` | Fused multiply-add | *None* |
+| 18 | `MulSub` | `a b c` → `a * b - c` | Fused multiply-subtract | *None* |
+| 19 | `SubMul` | `c a b` → `c - a * b` | Fused subtract-multiply | *None* |
+| 20 | `Neg` | `a` → `-a` | Scalar negation | *None* |
+| 21 | `Abs` | `a` → `\|a\|` | Scalar absolute value | *None* |
+| 22 | `Inv` | `a` → `1 / a` | Scalar reciprocal | *None* |
+| 23 | `Sqrt` | `a` → `sqrt(a)` | Square root | *None* |
+| 24 | `Sin` | `a` → `sin(a)` | Sine | *None* |
+| 25 | `Cos` | `a` → `cos(a)` | Cosine | *None* |
+| 26 | `Tan` | `a` → `tan(a)` | Tangent | *None* |
+| 27 | `Asin` | `a` → `asin(a)` | Arc sine | *None* |
+| 28 | `Acos` | `a` → `acos(a)` | Arc cosine | *None* |
+| 29 | `Atan2` | `x y` → `atan2(y, x)` | Four-quadrant inverse tangent | *None* |
+| 30 | `CosSin` | `t` → `cos(t) sin(t)` | Simultaneous scalar cosine and sine evaluation | *None* |
+| 31 | `PanTilt` | `v[3]` → `pan tilt` | Pan and tilt spherical angles from 3D line-of-sight vector $[v_0, v_1, v_2]$: $\text{pan} = \text{atan2}(v_1, v_0)$, $\text{tilt} = \text{atan2}(v_2, \sqrt{v_0^2 + v_1^2})$ | *None* |
+| 32 | `Ipow` | `a` → `a ^ exp` | Integer exponentiation | **1 byte**:<br>• `[7:0]`: `exp` (two's complement signed 8-bit int, -128..127) |
+| 33 | `Pow` | `a b` → `a ^ b` | Scalar power | *None* |
+| 34 | `Exp` | `a` → `exp(a)` | Exponential | *None* |
+| 35 | `Ln` | `a` → `ln(a)` | Natural logarithm | *None* |
 | 36 | `PushVec` | ` ` → `v[N]` | Push vector float literals onto stack | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$)<br>**Followed by**: `size * 4` bytes (IEEE 754 32-bit float literals) |
 | 37 | `AddVec` | `u[N] v[N]` → `(u + v)[N]` | Componentwise vector addition | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
 | 38 | `SubVec` | `u[N] v[N]` → `(u - v)[N]` | Componentwise vector subtraction | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
 | 39 | `MulVec` | `u[N] v[N]` → `(u * v)[N]` | Componentwise vector multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
 | 40 | `DivVec` | `u[N] v[N]` → `(u / v)[N]` | Componentwise vector division | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 41 | `NegVec` | `v[N]` → `(-v)[N]` | Componentwise vector negation | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 42 | `InvVec` | `v[N]` → `(1 / v)[N]` | Componentwise vector reciprocal | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 43 | `DotVec` | `u[N] v[N]` → `(u · v)` | Vector dot product | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 44 | `NormSqVec` | `v[N]` → `\|\|v\|\|^2` | Squared Euclidean norm $\|v\|^2$ | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 45 | `SumVec` | `v[N]` → `sum(v)` | Sum of vector components | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 46 | `MulAddVec` | `a[N] b[N] c[N]` → `(a * b + c)[N]` | Componentwise fused multiply-add | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 47 | `MulSubVec` | `a[N] b[N] c[N]` → `(a * b - c)[N]` | Componentwise fused multiply-subtract | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 48 | `SubMulVec` | `c[N] a[N] b[N]` → `(c - a * b)[N]` | Componentwise fused subtract-multiply | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 49 | `ScaleVec` | `v[N] s` → `(s * v)[N]` | Vector scalar multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 50 | `MulMat` | `v[rows]` → `(v * M)[cols]` | Vector-matrix multiplication $w = v \cdot M$ with immediate matrix $M$ | **1 byte dimension**:<br>• `[1:0]`: `rows - 1` (0..3 for 1..4 input dimensions / rows in $M$)<br>• `[3:2]`: Reserved (must be 0)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions / cols in $M$)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit floats ($M$ in column-major order: column by column) |
-| 51 | `Poly` | `t` → `P(t)[cols]` | Polynomial evaluation for scalar $t$ with immediate coefficients | **1 byte dimension**:<br>• `[3:0]`: `rows - 1` (0..15 for 1..16 coefficients per column / degree + 1)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit float coefficients (degree by degree from highest order down to constant term: for each degree, column 0 to cols-1) |
+| 41 | `MulAddVec` | `a[N] b[N] c[N]` → `(a * b + c)[N]` | Componentwise fused multiply-add | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 42 | `MulSubVec` | `a[N] b[N] c[N]` → `(a * b - c)[N]` | Componentwise fused multiply-subtract | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 43 | `SubMulVec` | `c[N] a[N] b[N]` → `(c - a * b)[N]` | Componentwise fused subtract-multiply | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 44 | `NegVec` | `v[N]` → `(-v)[N]` | Componentwise vector negation | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 45 | `AbsVec` | `v[N]` → `\|v\|[N]` | Componentwise vector absolute value | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 46 | `InvVec` | `v[N]` → `(1 / v)[N]` | Componentwise vector reciprocal | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 47 | `DotVec` | `u[N] v[N]` → `(u · v)` | Vector dot product | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 48 | `NormSqVec` | `v[N]` → `\|\|v\|\|^2` | Squared Euclidean norm $\|v\|^2$ | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 49 | `SumVec` | `v[N]` → `sum(v)` | Sum of vector components | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 50 | `ScaleVec` | `v[N] s` → `(s * v)[N]` | Vector scalar multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 51 | `MulMat` | `v[rows]` → `(v * M)[cols]` | Vector-matrix multiplication $w = v \cdot M$ with immediate matrix $M$ | **1 byte dimension**:<br>• `[1:0]`: `rows - 1` (0..3 for 1..4 input dimensions / rows in $M$)<br>• `[3:2]`: Reserved (must be 0)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions / cols in $M$)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit floats ($M$ in column-major order: column by column) |
+| 52 | `Poly` | `t` → `P(t)[cols]` | Polynomial evaluation for scalar $t$ with immediate coefficients | **1 byte dimension**:<br>• `[3:0]`: `rows - 1` (0..15 for 1..16 coefficients per column / degree + 1)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit float coefficients (degree by degree from highest order down to constant term: for each degree, column 0 to cols-1) |
 
 ### Embedded Memory & Acceleration Flags (C++)
 
@@ -107,19 +108,19 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 * **Library-Only Flash**: Code and constant rodata generated directly by `WickedPostfix` functions in `WickedPostfix.cc`.
 * **Transitive Flash**: Net flash delta added to a linked firmware binary with linker dead-stripping (`-Wl,--gc-sections`), capturing the library code plus all transitive standard library (`libm` / Newlib) dependencies.
 
-#### Full Profile (Default: All 51 Opcodes)
+#### Full Profile (Default: All 52 Opcodes)
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,686 B** (~3.6 KB) | **12,460 B** (~12.2 KB) |
-| **ESP32-S3** (Xtensa LX7) | **4,892 B** (~4.8 KB) | **13,856 B** (~13.5 KB) |
+| **STM32G4** (Cortex-M4F) | **3,743 B** (~3.7 KB) | **12,512 B** (~12.2 KB) |
+| **ESP32-S3** (Xtensa LX7) | **4,939 B** (~4.8 KB) | **13,908 B** (~13.6 KB) |
 
 #### Slim Profile (`-DWICKED_POSTFIX_SLIM`)
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Full |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,700 B** (~3.6 KB) | **9,216 B** (~9.0 KB) | **3,244 B (~3.2 KB)** |
-| **ESP32-S3** (Xtensa LX7) | **4,828 B** (~4.7 KB) | **10,604 B** (~10.4 KB) | **3,252 B (~3.2 KB)** |
+| **STM32G4** (Cortex-M4F) | **3,759 B** (~3.7 KB) | **9,272 B** (~9.1 KB) | **3,240 B (~3.2 KB)** |
+| **ESP32-S3** (Xtensa LX7) | **4,883 B** (~4.8 KB) | **10,648 B** (~10.4 KB) | **3,260 B (~3.2 KB)** |
 
 #### Slim Profile with CMSIS-DSP (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_CMSIS_DSP`)
 
@@ -127,7 +128,7 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Slim |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,700 B** (~3.6 KB) | **7,532 B** (~7.4 KB) | **1,684 B (~1.6 KB)** |
+| **STM32G4** (Cortex-M4F) | **3,759 B** (~3.7 KB) | **7,588 B** (~7.4 KB) | **1,684 B (~1.6 KB)** |
 
 #### Slim Profile with Hardware CORDIC (`-DWICKED_POSTFIX_SLIM -DWICKED_USE_STM32_CORDIC`)
 
@@ -135,7 +136,7 @@ Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Slim |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **3,972 B** (~3.9 KB) | **4,344 B** (~4.2 KB) | **4,872 B (~4.8 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,027 B** (~3.9 KB) | **4,396 B** (~4.3 KB) | **4,876 B (~4.8 KB)** |
 
 > [!NOTE]
 > **Firmware Considerations for CORDIC:**
@@ -144,10 +145,10 @@ Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5
 > * **Range & Scale Normalization:** The embedded CORDIC helper automatically maps arbitrary angles in radians to $[-1.0, 1.0)$ for $\sin$/$\cos$, and scales Cartesian inputs by $1 / \max(|x|, |y|)$ for $\text{atan2}$, requiring zero table lookups or standard library calls.
 
 #### Section Breakdown (STM32G4, Thumb-2)
-* **Bytecode Validation (`WickedPostfixValidate`)**: ~570 B `.text`
-* **Bytecode Evaluation (`WickedPostfixEvaluate`)**: ~2,472 B (Slim) / ~2,508 B (Full) `.text`
+* **Bytecode Validation (`WickedPostfixValidate`)**: ~572 B `.text`
+* **Bytecode Evaluation (`WickedPostfixEvaluate`)**: ~2,516 B (Slim) / ~2,552 B (Full) `.text`
 * **Reader & Utilities (`WickedPostfixRead`, `copy_n`)**: ~58 B `.text`
-* **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~550 B `.rodata`
+* **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~561 B `.rodata`
 
 #### Benchmark Compilation Flags
 * **STM32G4** (GNU Tools for STM32 14.3.1 / `arm-none-eabi-g++`):

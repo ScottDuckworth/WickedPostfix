@@ -1212,6 +1212,38 @@ TEST(EvalTest, NegVecIntUnderflow) {
   EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_IllegalOperation);
 }
 
+TEST(EvalTest, AbsVec) {
+  WickedPostfixWriter writer;
+  writer.AbsVec(3);
+  auto buffer = writer.Write();
+
+  TestEval eval(8, {0, -3, 4, -2.5f});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 4), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  EXPECT_THAT(eval.stack(), ElementsAre(0, 3, 4, 2.5f));
+}
+
+TEST(EvalTest, AbsVecStackUnderflow) {
+  WickedPostfixWriter writer;
+  writer.AbsVec(3);
+  auto buffer = writer.Write();
+
+  TestEval eval(8, {1, 2});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_StackUnderflow);
+}
+
+TEST(EvalTest, AbsVecIntUnderflow) {
+  WickedPostfixWriter writer;
+  writer.EmitOp(WickedPostfixOp_AbsVec);
+  auto buffer = writer.Write();
+
+  TestEval eval(8, {0, 1, 2, 3});
+  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_IllegalOperation);
+}
+
 TEST(EvalTest, InvVec) {
   WickedPostfixWriter writer;
   writer.InvVec(3);
@@ -1908,6 +1940,7 @@ TEST(EvalTest, OpToString) {
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Copy), "Copy");
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Move), "Move");
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_PushVec), "PushVec");
+  EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_AbsVec), "AbsVec");
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_DotVec), "DotVec");
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Ipow), "Ipow");
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Poly), "Poly");
