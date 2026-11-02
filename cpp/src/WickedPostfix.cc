@@ -58,6 +58,8 @@ extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
     case WickedPostfixOp_Acos:      return "Acos";
     case WickedPostfixOp_Ipow:      return "Ipow";
     case WickedPostfixOp_MulAdd:    return "MulAdd";
+    case WickedPostfixOp_MulSub:    return "MulSub";
+    case WickedPostfixOp_SubMul:    return "SubMul";
     case WickedPostfixOp_PushVec:   return "PushVec";
     case WickedPostfixOp_AddVec:    return "AddVec";
     case WickedPostfixOp_SubVec:    return "SubVec";
@@ -69,6 +71,8 @@ extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
     case WickedPostfixOp_NormSqVec: return "NormSqVec";
     case WickedPostfixOp_SumVec:    return "SumVec";
     case WickedPostfixOp_MulAddVec: return "MulAddVec";
+    case WickedPostfixOp_MulSubVec: return "MulSubVec";
+    case WickedPostfixOp_SubMulVec: return "SubMulVec";
     case WickedPostfixOp_ScaleVec:  return "ScaleVec";
     case WickedPostfixOp_LerpVec:   return "LerpVec";
     case WickedPostfixOp_MulMat:    return "MulMat";
@@ -411,7 +415,9 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, ui
 #endif
       status = validate::UnaryOp(ctx); break;
       case WickedPostfixOp_Ipow:      status = validate::Ipow(ctx); break;
-      case WickedPostfixOp_MulAdd:    status = validate::MulAdd(ctx); break;
+      case WickedPostfixOp_MulAdd:
+      case WickedPostfixOp_MulSub:
+      case WickedPostfixOp_SubMul:    status = validate::MulAdd(ctx); break;
       case WickedPostfixOp_PushVec:   status = validate::PushVec(ctx); break;
       case WickedPostfixOp_AddVec:
       case WickedPostfixOp_SubVec:
@@ -422,7 +428,9 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, ui
       case WickedPostfixOp_DotVec:    status = validate::DotVec(ctx); break;
       case WickedPostfixOp_NormSqVec:
       case WickedPostfixOp_SumVec:    status = validate::NormSqVec(ctx); break;
-      case WickedPostfixOp_MulAddVec: status = validate::MulAddVec(ctx); break;
+      case WickedPostfixOp_MulAddVec:
+      case WickedPostfixOp_MulSubVec:
+      case WickedPostfixOp_SubMulVec: status = validate::MulAddVec(ctx); break;
       case WickedPostfixOp_ScaleVec:  status = validate::ScaleVec(ctx); break;
       case WickedPostfixOp_LerpVec:   status = validate::LerpVec(ctx); break;
       case WickedPostfixOp_MulMat:    status = validate::MulMat(ctx); break;
@@ -707,6 +715,20 @@ WICKED_ALWAYS_INLINE void MulAdd(EvalContext& ctx) {
   top = std::fma(top, b, c);
 }
 
+WICKED_ALWAYS_INLINE void MulSub(EvalContext& ctx) {
+  float c = ctx.pop();
+  float b = ctx.pop();
+  float& top = ctx.peek();
+  top = std::fma(top, b, -c);
+}
+
+WICKED_ALWAYS_INLINE void SubMul(EvalContext& ctx) {
+  float b = ctx.pop();
+  float a = ctx.pop();
+  float& top = ctx.peek();
+  top = std::fma(-a, b, top);
+}
+
 WICKED_ALWAYS_INLINE void AddVec(EvalContext& ctx) {
   uint8_t size = ctx.fetch_byte() + 1;
   std::span<float> rhs = ctx.popv(size);
@@ -823,6 +845,26 @@ WICKED_ALWAYS_INLINE void MulAddVec(EvalContext& ctx) {
   std::span<float> a = ctx.peekv(size);
   for (uint8_t i = 0; i < size; ++i) {
     a[i] = std::fma(a[i], b[i], c[i]);
+  }
+}
+
+WICKED_ALWAYS_INLINE void MulSubVec(EvalContext& ctx) {
+  uint8_t size = ctx.fetch_byte() + 1;
+  std::span<float> c = ctx.popv(size);
+  std::span<float> b = ctx.popv(size);
+  std::span<float> a = ctx.peekv(size);
+  for (uint8_t i = 0; i < size; ++i) {
+    a[i] = std::fma(a[i], b[i], -c[i]);
+  }
+}
+
+WICKED_ALWAYS_INLINE void SubMulVec(EvalContext& ctx) {
+  uint8_t size = ctx.fetch_byte() + 1;
+  std::span<float> b = ctx.popv(size);
+  std::span<float> a = ctx.popv(size);
+  std::span<float> c = ctx.peekv(size);
+  for (uint8_t i = 0; i < size; ++i) {
+    c[i] = std::fma(-a[i], b[i], c[i]);
   }
 }
 
@@ -1003,6 +1045,8 @@ extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_si
 #endif
       case WickedPostfixOp_Ipow:      ops::Ipow(ctx); break;
       case WickedPostfixOp_MulAdd:    ops::MulAdd(ctx); break;
+      case WickedPostfixOp_MulSub:    ops::MulSub(ctx); break;
+      case WickedPostfixOp_SubMul:    ops::SubMul(ctx); break;
       case WickedPostfixOp_PushVec:   ops::PushVec(ctx); break;
       case WickedPostfixOp_AddVec:    ops::AddVec(ctx); break;
       case WickedPostfixOp_SubVec:    ops::SubVec(ctx); break;
@@ -1014,6 +1058,8 @@ extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_si
       case WickedPostfixOp_NormSqVec: ops::NormSqVec(ctx); break;
       case WickedPostfixOp_SumVec:    ops::SumVec(ctx); break;
       case WickedPostfixOp_MulAddVec: ops::MulAddVec(ctx); break;
+      case WickedPostfixOp_MulSubVec: ops::MulSubVec(ctx); break;
+      case WickedPostfixOp_SubMulVec: ops::SubMulVec(ctx); break;
       case WickedPostfixOp_ScaleVec:  ops::ScaleVec(ctx); break;
       case WickedPostfixOp_LerpVec:   ops::LerpVec(ctx); break;
       case WickedPostfixOp_MulMat:    ops::MulMat(ctx); break;

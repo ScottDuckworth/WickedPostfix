@@ -81,23 +81,27 @@ typedef enum WickedPostfixOp {
   WickedPostfixOp_Acos      = 29,
   WickedPostfixOp_Ipow      = 30,
   WickedPostfixOp_MulAdd    = 31,
-  WickedPostfixOp_PushVec   = 32,
-  WickedPostfixOp_AddVec    = 33,
-  WickedPostfixOp_SubVec    = 34,
-  WickedPostfixOp_MulVec    = 35,
-  WickedPostfixOp_DivVec    = 36,
-  WickedPostfixOp_NegVec    = 37,
-  WickedPostfixOp_InvVec    = 38,
-  WickedPostfixOp_DotVec    = 39,
-  WickedPostfixOp_NormSqVec = 40,
-  WickedPostfixOp_SumVec    = 41,
-  WickedPostfixOp_MulAddVec = 42,
-  WickedPostfixOp_ScaleVec  = 43,
-  WickedPostfixOp_LerpVec   = 44,
-  WickedPostfixOp_MulMat    = 45,
-  WickedPostfixOp_Poly      = 46,
-  WickedPostfixOp_CosSin    = 47,
-  WickedPostfixOp_PanTilt   = 48,
+  WickedPostfixOp_MulSub    = 32,
+  WickedPostfixOp_SubMul    = 33,
+  WickedPostfixOp_PushVec   = 34,
+  WickedPostfixOp_AddVec    = 35,
+  WickedPostfixOp_SubVec    = 36,
+  WickedPostfixOp_MulVec    = 37,
+  WickedPostfixOp_DivVec    = 38,
+  WickedPostfixOp_NegVec    = 39,
+  WickedPostfixOp_InvVec    = 40,
+  WickedPostfixOp_DotVec    = 41,
+  WickedPostfixOp_NormSqVec = 42,
+  WickedPostfixOp_SumVec    = 43,
+  WickedPostfixOp_MulAddVec = 44,
+  WickedPostfixOp_MulSubVec = 45,
+  WickedPostfixOp_SubMulVec = 46,
+  WickedPostfixOp_ScaleVec  = 47,
+  WickedPostfixOp_LerpVec   = 48,
+  WickedPostfixOp_MulMat    = 49,
+  WickedPostfixOp_Poly      = 50,
+  WickedPostfixOp_CosSin    = 51,
+  WickedPostfixOp_PanTilt   = 52,
 } WickedPostfixOp_t;
 
 // Returns true if op is a binary scalar operation (13..18).
@@ -110,32 +114,32 @@ static inline bool WickedPostfixOpIsUnaryScalar(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_Neg && op <= WickedPostfixOp_Acos;
 }
 
-// Returns true if op is any scalar operation (13..31).
+// Returns true if op is any scalar operation (13..33).
 static inline bool WickedPostfixOpIsScalar(WickedPostfixOp_t op) {
-  return op >= WickedPostfixOp_Add && op <= WickedPostfixOp_MulAdd;
+  return op >= WickedPostfixOp_Add && op <= WickedPostfixOp_SubMul;
 }
 
-// Returns true if op is a binary vector operation (33..36).
+// Returns true if op is a binary vector operation (35..38).
 static inline bool WickedPostfixOpIsBinaryVec(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_AddVec && op <= WickedPostfixOp_DivVec;
 }
 
-// Returns true if op is a unary vector operation (37..38).
+// Returns true if op is a unary vector operation (39..40).
 static inline bool WickedPostfixOpIsUnaryVec(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_NegVec && op <= WickedPostfixOp_InvVec;
 }
 
-// Returns true if op is a vector reduction operation (40..41).
+// Returns true if op is a vector reduction operation (42..43).
 static inline bool WickedPostfixOpIsVectorReduction(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_NormSqVec && op <= WickedPostfixOp_SumVec;
 }
 
-// Returns true if op is a vector operation (32..44).
+// Returns true if op is a vector operation (34..48).
 static inline bool WickedPostfixOpIsVector(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_PushVec && op <= WickedPostfixOp_LerpVec;
 }
 
-// Returns true if op takes a 1-byte size operand (32..44).
+// Returns true if op takes a 1-byte size operand (34..48).
 static inline bool WickedPostfixOpHasSizeOperand(WickedPostfixOp_t op) {
   return op >= WickedPostfixOp_PushVec && op <= WickedPostfixOp_LerpVec;
 }
@@ -370,6 +374,12 @@ class WickedPostfixWriter {
   // Pops c, b, a and pushes a*b + c (a b c -> a * b + c).
   void MulAdd() { EmitOp(WickedPostfixOp_MulAdd); }
 
+  // Pops c, b, a and pushes a*b - c (a b c -> a * b - c).
+  void MulSub() { EmitOp(WickedPostfixOp_MulSub); }
+
+  // Pops b, a, c and pushes c - a*b (c a b -> c - a * b).
+  void SubMul() { EmitOp(WickedPostfixOp_SubMul); }
+
   // Adds two vectors componentwise (u[N] v[N] -> (u + v)[N]).
   void AddVec(uint8_t size) {
     assert(size > 0);
@@ -437,6 +447,20 @@ class WickedPostfixWriter {
   void MulAddVec(uint8_t size) {
     assert(size > 0);
     EmitOp(WickedPostfixOp_MulAddVec);
+    EmitByte(size - 1);
+  }
+
+  // Componentwise fused multiply-subtract (a[N] b[N] c[N] -> (a * b - c)[N]).
+  void MulSubVec(uint8_t size) {
+    assert(size > 0);
+    EmitOp(WickedPostfixOp_MulSubVec);
+    EmitByte(size - 1);
+  }
+
+  // Componentwise fused subtract-multiply (c[N] a[N] b[N] -> (c - a * b)[N]).
+  void SubMulVec(uint8_t size) {
+    assert(size > 0);
+    EmitOp(WickedPostfixOp_SubMulVec);
     EmitByte(size - 1);
   }
 

@@ -216,7 +216,7 @@ def print_markdown_tables(results):
     print("\n### Formatted Markdown Tables for Documentation:\n")
 
     # Full Profile Table
-    print("#### Full Profile (Default: All 48 Opcodes)\n")
+    print("#### Full Profile (Default: All 52 Opcodes)\n")
     print("| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |")
     print("| :--- | :---: | :---: |")
     if "stm32_full" in results:
