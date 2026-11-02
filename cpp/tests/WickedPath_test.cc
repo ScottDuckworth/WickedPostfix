@@ -161,7 +161,6 @@ TEST(PathEvalTest, SegmentAt) {
   EXPECT_TRUE(WickedPathSegmentAt(buffer.data(), 1000, &descriptor));
   EXPECT_EQ(descriptor.start_time, 1000);
   EXPECT_NE(descriptor.prog_data, nullptr);
-  EXPECT_GT(descriptor.prog_size, 0);
 
   // At 1999: still segment 0
   EXPECT_TRUE(WickedPathSegmentAt(buffer.data(), 1999, &descriptor));
@@ -171,7 +170,6 @@ TEST(PathEvalTest, SegmentAt) {
   EXPECT_TRUE(WickedPathSegmentAt(buffer.data(), 2000, &descriptor));
   EXPECT_EQ(descriptor.start_time, 2000);
   EXPECT_NE(descriptor.prog_data, nullptr);
-  EXPECT_GT(descriptor.prog_size, 0);
 
   // At 500: wraps around to segment 1 (since 1000 is start of segment 0)
   EXPECT_TRUE(WickedPathSegmentAt(buffer.data(), 500, &descriptor));
@@ -195,7 +193,7 @@ TEST(PathEvalTest, PostfixErrors) {
     WickedPathWriter writer;
     WickedPathSegmentWriter* segment = writer.add_segments();
     segment->start_time = 0;
-    segment->expr.EmitByte(255); // Undefined opcode
+    segment->expr.EmitOp(static_cast<WickedPostfixOp_t>(254)); // Undefined opcode
     auto buffer = writer.Write();
     EXPECT_EQ(WickedPathValidate(buffer.data(), buffer.size(), 8), WickedEvalStatus_UndefinedOperation);
   }

@@ -39,12 +39,9 @@ extern "C" WickedEvalStatus_t WickedPathValidate(const uint8_t* path_data, size_
   for (uint16_t i = 0; i < header->segment_size; ++i) {
     const WickedPathSegmentHeader_t& segment = segments[i];
     if (path_size < segment.offset + segment.size) return WickedEvalStatus_IllegalOperation;
-    const uint8_t* prog_data;
-    uint16_t prog_size;
     uint16_t min_capacity;
     uint16_t final_size;
-    if (!WickedPostfixRead(path_data + segment.offset, segment.size, &prog_data, &prog_size)) return WickedEvalStatus_IllegalOperation;
-    WickedEvalStatus_t status = WickedPostfixValidate(prog_data, prog_size, 1, &min_capacity, &final_size);
+    WickedEvalStatus_t status = WickedPostfixValidate(path_data + segment.offset, segment.size, 1, &min_capacity, &final_size);
     if (status != WickedEvalStatus_Ok) return status;
     if (final_size != 1) return WickedEvalStatus_UnexpectedStackSize;
     if (min_capacity > stack_capacity) return WickedEvalStatus_StackOverflow;
@@ -64,7 +61,7 @@ bool WickedPathSegmentAt(const uint8_t* path_data, uint32_t t, WickedPathSegment
 
   if (descriptor) {
     descriptor->start_time = segment.start_time;
-    WickedPostfixReadUnsafe(path_data + segment.offset, &descriptor->prog_data, &descriptor->prog_size);
+    descriptor->prog_data = path_data + segment.offset;
   }
   return true;
 }
@@ -73,7 +70,7 @@ extern "C" WickedEvalStatus_t WickedPathEvaluate(const uint8_t* path_data, uint3
   WickedPathSegmentDescriptor_t descriptor;
   if (!WickedPathSegmentAt(path_data, t, &descriptor)) return WickedEvalStatus_UndefinedOperation;
   stack_data[0] = static_cast<float>(t - descriptor.start_time);
-  WickedPostfixEvaluate(descriptor.prog_data, descriptor.prog_size, 1, stack_data);
+  WickedPostfixEvaluate(descriptor.prog_data, 1, stack_data);
   return WickedEvalStatus_Ok;
 }
 

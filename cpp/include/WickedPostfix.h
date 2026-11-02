@@ -18,29 +18,6 @@
 extern "C" {
 #endif
 
-#ifndef WICKED_PACKED
-#if defined(__GNUC__) || defined(__clang__)
-#define WICKED_PACKED __attribute__((__packed__))
-#else
-#define WICKED_PACKED
-#endif
-#endif
-
-#pragma pack(push, 1)
-// Header preceding the postfix bytecode program, specifying program byte size.
-typedef struct WICKED_PACKED WickedPostfixHeader {
-	uint16_t prog_size;
-} WickedPostfixHeader_t;
-#pragma pack(pop)
-
-#if defined(__cplusplus)
-static_assert(sizeof(WickedPostfixHeader_t) == 2, "WickedPostfixHeader_t must be 2 bytes");
-static_assert(alignof(WickedPostfixHeader_t) == 1, "WickedPostfixHeader_t must be packed");
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-_Static_assert(sizeof(WickedPostfixHeader_t) == 2, "WickedPostfixHeader_t must be 2 bytes");
-_Static_assert(_Alignof(WickedPostfixHeader_t) == 1, "WickedPostfixHeader_t must be packed");
-#endif
-
 // Bytecode operations for the postfix evaluation machine.
 typedef enum WickedPostfixOp {
   WickedPostfixOp_Undefined = 0,
@@ -96,29 +73,18 @@ typedef enum WickedPostfixOp {
   WickedPostfixOp_ScaleVec  = 50,
   WickedPostfixOp_MulMat    = 51,
   WickedPostfixOp_Poly      = 52,
+  WickedPostfixOp_Ret       = 255,
 } WickedPostfixOp_t;
 
 // Returns the string representation of an opcode.
 const char* WickedPostfixOpToString(WickedPostfixOp_t op);
 
-// Parses and validates the header from data, returning pointers to prog_data and prog_size.
-bool WickedPostfixRead(const uint8_t* data, size_t size, const uint8_t** prog_data, uint16_t* prog_size);
+// Validates bytecode stack requirements within buffer_size and returns status, minimum stack capacity, and final stack size.
+// The program must terminate with WickedPostfixOp_Ret before the buffer boundary is exceeded.
+WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, size_t buffer_size, uint16_t initial_stack_size, uint16_t* minimum_stack_capacity, uint16_t* final_stack_size);
 
-// Validates bytecode stack requirements and returns status, minimum stack capacity, and final stack size.
-WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, uint16_t prog_size, uint16_t initial_stack_size, uint16_t* minimum_stack_capacity, uint16_t* final_stack_size);
-
-// Evaluates bytecode on stack_data in-place without bounds checking.
-void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_size, uint16_t initial_stack_size, float* stack_data);
-
-// Unsafe inline reader that extracts prog_data and prog_size without bounds checking.
-static inline void WickedPostfixReadUnsafe(const uint8_t* data, const uint8_t** prog_data, uint16_t* prog_size) {
-  if (prog_data) *prog_data = data + sizeof(WickedPostfixHeader_t);
-  if (prog_size) {
-    uint16_t size;
-    memcpy(&size, data, sizeof(uint16_t));
-    *prog_size = size;
-  }
-}
+// Evaluates bytecode on stack_data in-place without bounds checking until WickedPostfixOp_Ret is reached.
+void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t initial_stack_size, float* stack_data);
 
 #ifdef __cplusplus
 }

@@ -16,7 +16,7 @@ namespace {
 
 struct TestEval {
   const uint8_t* prog_data = nullptr;
-  uint16_t prog_size = 0;
+  size_t buffer_size = 0;
   float* stack_data = nullptr;
   uint16_t stack_size = 0;
   uint16_t stack_capacity = 0;
@@ -44,12 +44,14 @@ struct TestEval {
 };
 
 bool WickedPostfixRead(const uint8_t* data, size_t size, TestEval* eval) {
-  return ::WickedPostfixRead(data, size, &eval->prog_data, &eval->prog_size);
+  eval->prog_data = data;
+  eval->buffer_size = size;
+  return data != nullptr && size > 0;
 }
 
 WickedEvalStatus_t WickedPostfixValidate(TestEval* eval, uint16_t expected_final_stack_size) {
   WickedEvalStatus_t status = ::WickedPostfixValidate(
-      eval->prog_data, eval->prog_size, eval->stack_size,
+      eval->prog_data, eval->buffer_size, eval->stack_size,
       &eval->min_capacity, &eval->final_stack_size);
   if (status != WickedEvalStatus_Ok) {
     return status;
@@ -64,7 +66,7 @@ WickedEvalStatus_t WickedPostfixValidate(TestEval* eval, uint16_t expected_final
 }
 
 void WickedPostfixEvaluate(TestEval* eval) {
-  ::WickedPostfixEvaluate(eval->prog_data, eval->prog_size, eval->stack_size, eval->stack_data);
+  ::WickedPostfixEvaluate(eval->prog_data, eval->stack_size, eval->stack_data);
   eval->stack_size = eval->final_stack_size;
 }
 
@@ -387,13 +389,10 @@ TEST(EvalTest, CopyStackUnderflow) {
 }
 
 TEST(EvalTest, CopyIntUnderflow) {
-  WickedPostfixWriter writer;
-  writer.EmitOp(WickedPostfixOp_Copy);
-  auto buffer = writer.Write();
-
-  TestEval eval(4, {10, 20});
-  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
-  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_IllegalOperation);
+  uint8_t buf[] = {WickedPostfixOp_Copy};
+  uint16_t min_cap = 0, final_sz = 0;
+  EXPECT_EQ(::WickedPostfixValidate(buf, sizeof(buf), 2, &min_cap, &final_sz),
+            WickedEvalStatus_IllegalOperation);
 }
 
 TEST(EvalTest, MoveStackUnderflow) {
@@ -407,13 +406,10 @@ TEST(EvalTest, MoveStackUnderflow) {
 }
 
 TEST(EvalTest, MoveIntUnderflow) {
-  WickedPostfixWriter writer;
-  writer.EmitOp(WickedPostfixOp_Move);
-  auto buffer = writer.Write();
-
-  TestEval eval(4, {10, 20});
-  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
-  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_IllegalOperation);
+  uint8_t buf[] = {WickedPostfixOp_Move};
+  uint16_t min_cap = 0, final_sz = 0;
+  EXPECT_EQ(::WickedPostfixValidate(buf, sizeof(buf), 2, &min_cap, &final_sz),
+            WickedEvalStatus_IllegalOperation);
 }
 
 TEST(EvalTest, CopyBaseScalar) {
@@ -463,13 +459,10 @@ TEST(EvalTest, CopyBaseStackUnderflow) {
 }
 
 TEST(EvalTest, CopyBaseIntUnderflow) {
-  WickedPostfixWriter writer;
-  writer.EmitOp(WickedPostfixOp_CopyBase);
-  auto buffer = writer.Write();
-
-  TestEval eval(4, {10, 20});
-  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
-  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_IllegalOperation);
+  uint8_t buf[] = {WickedPostfixOp_CopyBase};
+  uint16_t min_cap = 0, final_sz = 0;
+  EXPECT_EQ(::WickedPostfixValidate(buf, sizeof(buf), 2, &min_cap, &final_sz),
+            WickedEvalStatus_IllegalOperation);
 }
 
 TEST(EvalTest, Slide) {
@@ -507,13 +500,10 @@ TEST(EvalTest, SlideUnderflow) {
 }
 
 TEST(EvalTest, SlideIntUnderflow) {
-  WickedPostfixWriter writer;
-  writer.EmitOp(WickedPostfixOp_Slide);
-  auto buffer = writer.Write();
-
-  TestEval eval(4, {10, 20});
-  EXPECT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
-  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_IllegalOperation);
+  uint8_t buf[] = {WickedPostfixOp_Slide};
+  uint16_t min_cap = 0, final_sz = 0;
+  EXPECT_EQ(::WickedPostfixValidate(buf, sizeof(buf), 2, &min_cap, &final_sz),
+            WickedEvalStatus_IllegalOperation);
 }
 
 TEST(EvalTest, Add) {
@@ -1967,18 +1957,14 @@ TEST(EvalTest, DirectValidateAndEvaluate) {
   writer.PushVec({1, 2});
   auto buffer = writer.Write();
 
-  const uint8_t* prog_data = nullptr;
-  uint16_t prog_size = 0;
-  EXPECT_TRUE(::WickedPostfixRead(buffer.data(), buffer.size(), &prog_data, &prog_size));
-
   uint16_t min_capacity = 0;
   uint16_t final_stack_size = 0;
-  EXPECT_EQ(::WickedPostfixValidate(prog_data, prog_size, 1, &min_capacity, &final_stack_size), WickedEvalStatus_Ok);
+  EXPECT_EQ(::WickedPostfixValidate(buffer.data(), buffer.size(), 1, &min_capacity, &final_stack_size), WickedEvalStatus_Ok);
   EXPECT_EQ(min_capacity, 3);
   EXPECT_EQ(final_stack_size, 3);
 
   float stack[4] = {42, 0, 0, 0};
-  ::WickedPostfixEvaluate(prog_data, prog_size, 1, stack);
+  ::WickedPostfixEvaluate(buffer.data(), 1, stack);
   EXPECT_THAT(std::span<float>(stack, final_stack_size), ElementsAre(42, 1, 2));
 }
 
@@ -1987,35 +1973,12 @@ TEST(EvalTest, StackCapacityExceedsUint16) {
   writer.Dup();
   auto buffer = writer.Write();
 
-  const uint8_t* prog_data = nullptr;
-  uint16_t prog_size = 0;
-  EXPECT_TRUE(::WickedPostfixRead(buffer.data(), buffer.size(), &prog_data, &prog_size));
-
   uint16_t min_capacity = 0;
   uint16_t final_stack_size = 0;
-  EXPECT_EQ(::WickedPostfixValidate(prog_data, prog_size, 65535, &min_capacity, &final_stack_size), WickedEvalStatus_StackOverflow);
+  EXPECT_EQ(::WickedPostfixValidate(buffer.data(), buffer.size(), 65535, &min_capacity, &final_stack_size), WickedEvalStatus_StackOverflow);
 }
 
-TEST(EvalTest, ReadUnsafe) {
-  WickedPostfixWriter writer;
-  writer.PushVec({1.0f, 2.0f});
-  auto buffer = writer.Write();
-
-  const uint8_t* safe_prog_data = nullptr;
-  uint16_t safe_prog_size = 0;
-  EXPECT_TRUE(::WickedPostfixRead(buffer.data(), buffer.size(), &safe_prog_data, &safe_prog_size));
-
-  const uint8_t* unsafe_prog_data = nullptr;
-  uint16_t unsafe_prog_size = 0;
-  WickedPostfixReadUnsafe(buffer.data(), &unsafe_prog_data, &unsafe_prog_size);
-
-  EXPECT_EQ(safe_prog_data, unsafe_prog_data);
-  EXPECT_EQ(safe_prog_size, unsafe_prog_size);
-  EXPECT_NE(unsafe_prog_data, nullptr);
-  EXPECT_GT(unsafe_prog_size, 0);
-}
-
-TEST(EvalTest, ReadUnaligned) {
+TEST(EvalTest, UnalignedBuffer) {
   WickedPostfixWriter writer;
   writer.PushVec({1.0f, 2.0f});
   auto buffer = writer.Write();
@@ -2025,23 +1988,64 @@ TEST(EvalTest, ReadUnaligned) {
   memcpy(unaligned_buffer.data() + 1, buffer.data(), buffer.size());
 
   const uint8_t* unaligned_data = unaligned_buffer.data() + 1;
-  const uint8_t* prog_data = nullptr;
-  uint16_t prog_size = 0;
-
-  EXPECT_TRUE(::WickedPostfixRead(unaligned_data, buffer.size(), &prog_data, &prog_size));
-  EXPECT_EQ(prog_data, unaligned_data + sizeof(WickedPostfixHeader_t));
-  EXPECT_GT(prog_size, 0);
-
-  const uint8_t* unsafe_prog_data = nullptr;
-  uint16_t unsafe_prog_size = 0;
-  WickedPostfixReadUnsafe(unaligned_data, &unsafe_prog_data, &unsafe_prog_size);
-  EXPECT_EQ(unsafe_prog_data, prog_data);
-  EXPECT_EQ(unsafe_prog_size, prog_size);
+  uint16_t min_cap = 0, final_sz = 0;
+  EXPECT_EQ(::WickedPostfixValidate(unaligned_data, buffer.size(), 1, &min_cap, &final_sz),
+            WickedEvalStatus_Ok);
+  float stack[4] = {0, 0, 0, 0};
+  ::WickedPostfixEvaluate(unaligned_data, 1, stack);
+  EXPECT_EQ(stack[1], 1.0f);
+  EXPECT_EQ(stack[2], 2.0f);
 }
 
-TEST(EvalTest, HeaderPacked) {
-  EXPECT_EQ(sizeof(WickedPostfixHeader_t), 2);
-  EXPECT_EQ(alignof(WickedPostfixHeader_t), 1);
+TEST(EvalTest, RetOpcode) {
+  EXPECT_EQ(static_cast<uint8_t>(WickedPostfixOp_Ret), 255);
+  EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Ret), "Ret");
+}
+
+TEST(EvalTest, MissingRet) {
+  // Bytecode without Ret: Push 42.0f (5 bytes)
+  uint8_t buf[5];
+  buf[0] = WickedPostfixOp_Push;
+  float val = 42.0f;
+  memcpy(buf + 1, &val, sizeof(float));
+
+  uint16_t min_cap = 0, final_sz = 0;
+  EXPECT_EQ(::WickedPostfixValidate(buf, sizeof(buf), 0, &min_cap, &final_sz),
+            WickedEvalStatus_IllegalOperation);
+}
+
+TEST(EvalTest, ErasedNorFlash) {
+  // Erased NOR flash is all 0xFF, which translates to immediate Ret opcodes
+  uint8_t erased_flash[64];
+  memset(erased_flash, 0xFF, sizeof(erased_flash));
+
+  uint16_t min_cap = 0, final_sz = 0;
+  EXPECT_EQ(::WickedPostfixValidate(erased_flash, sizeof(erased_flash), 2, &min_cap, &final_sz),
+            WickedEvalStatus_Ok);
+  EXPECT_EQ(min_cap, 2);
+  EXPECT_EQ(final_sz, 2);
+
+  float stack[4] = {10.0f, 20.0f};
+  ::WickedPostfixEvaluate(erased_flash, 2, stack);
+  EXPECT_EQ(stack[0], 10.0f);
+  EXPECT_EQ(stack[1], 20.0f);
+}
+
+TEST(EvalTest, PrematureRet) {
+  // Push 10.0f, Ret, Push 20.0f, Add (instructions after Ret are ignored)
+  WickedPostfixWriter writer;
+  writer.Push(10.0f);
+  writer.Ret();
+  writer.Push(20.0f);
+  writer.Add();
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {});
+  ASSERT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  ASSERT_EQ(eval.stack().size(), 1);
+  EXPECT_EQ(eval.stack()[0], 10.0f);
 }
 
 TEST(EvalTest, OpToString) {
@@ -2103,7 +2107,7 @@ TEST(StreamWriterTest, MatchesDynamicWriter) {
   EXPECT_TRUE(stream_writer.Finalize());
   EXPECT_EQ(stream_writer.bytes_written(), expected.size());
   EXPECT_EQ(stream_writer.bytes_needed(), expected.size());
-  EXPECT_EQ(stream_writer.prog_size(), dynamic_writer.prog_size());
+  EXPECT_EQ(stream_writer.prog_size(), dynamic_writer.data_size());
 
   EXPECT_EQ(std::vector<uint8_t>(stream_buf, stream_buf + stream_writer.bytes_written()), expected);
 
@@ -2118,8 +2122,8 @@ TEST(StreamWriterTest, MatchesDynamicWriter) {
 TEST(StreamWriterTest, OverflowAndRecovery) {
   uint8_t tiny_buf[6];
   WickedPostfixStreamWriter stream_writer(tiny_buf, sizeof(tiny_buf));
-  stream_writer.Push(10.0f);  // Op (1B) + Float (4B) = 5B payload -> 7B total with header
-  stream_writer.Push(20.0f);  // Another 5B
+  stream_writer.Push(10.0f);  // Op (1B) + Float (4B) = 5B payload
+  stream_writer.Push(20.0f);  // Another 5B -> exceeds 6B
   stream_writer.Add();        // 1B
 
   EXPECT_FALSE(stream_writer.ok());
@@ -2127,9 +2131,10 @@ TEST(StreamWriterTest, OverflowAndRecovery) {
   EXPECT_FALSE(stream_writer.Finalize());
   EXPECT_EQ(stream_writer.bytes_written(), 0);
 
-  // Expected bytes needed: 2 (header) + 5 + 5 + 1 = 13 bytes
-  size_t needed = stream_writer.bytes_needed();
-  EXPECT_EQ(needed, 13);
+  // Expected bytes needed before Finalize: 5 + 5 + 1 = 11 bytes.
+  // Finalize() needs 1 additional byte for Ret -> total 12 bytes.
+  size_t needed = stream_writer.bytes_needed() + 1;
+  EXPECT_EQ(needed, 12);
 
   // Retry with exact needed capacity
   std::vector<uint8_t> exact_buf(needed);
@@ -2150,20 +2155,19 @@ TEST(StreamWriterTest, OverflowAndRecovery) {
 }
 
 TEST(StreamWriterTest, CapacityEdgeCases) {
-  // Capacity smaller than header size
-  uint8_t tiny[1];
-  WickedPostfixStreamWriter small_stream(tiny, sizeof(tiny));
-  EXPECT_FALSE(small_stream.ok());
-  EXPECT_TRUE(small_stream.overflow());
+  // Empty program in 0-capacity buffer cannot finalize (Ret requires 1 byte)
+  WickedPostfixStreamWriter small_stream(nullptr, 0);
+  EXPECT_TRUE(small_stream.ok());
   EXPECT_FALSE(small_stream.Finalize());
 
-  // Empty program with exact header size
-  uint8_t header_only[2];
-  WickedPostfixStreamWriter empty_stream(header_only, sizeof(header_only));
+  // Empty program with exact Ret size (1 byte)
+  uint8_t ret_only[1];
+  WickedPostfixStreamWriter empty_stream(ret_only, sizeof(ret_only));
   EXPECT_TRUE(empty_stream.ok());
   EXPECT_TRUE(empty_stream.Finalize());
-  EXPECT_EQ(empty_stream.bytes_written(), 2);
-  EXPECT_EQ(empty_stream.prog_size(), 0);
+  EXPECT_EQ(empty_stream.bytes_written(), 1);
+  EXPECT_EQ(empty_stream.prog_size(), 1);
+  EXPECT_EQ(ret_only[0], WickedPostfixOp_Ret);
 }
 
 }  // namespace

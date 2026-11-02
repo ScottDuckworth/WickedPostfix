@@ -6,16 +6,16 @@ WickedWinchProtocol defines the wire protocols and bytecode evaluation engine fo
 
 `WickedPostfix` is a compact, deterministic, zero-allocation postfix bytecode evaluation machine designed for real-time trajectory generation, coordinate transformations, and polynomial evaluation on embedded motor controllers and central supervisors.
 
-### Wire Format & Header
+### Wire Format & Termination
 
-Every serialized `WickedPostfix` program begins with a 2-byte header:
+`WickedPostfix` bytecode programs are headerless and stream-terminated with an explicit return opcode (`Ret` / `255`). Opcode `255` (`0xFF`) matches the erased state of NOR flash memory, so runaway execution into unprogrammed flash safely terminates immediately without error.
 
 ```
-+-----------------------------+
-|  ProgSize (16-bit uint, LE) |
-+-----------------------------+
-|  Bytecode bytes (ProgSize)  |
-+-----------------------------+
++------------------------------------+
+|  Bytecode instructions ...         |
++------------------------------------+
+|  Ret (Opcode 255 / 0xFF)           |
++------------------------------------+
 ```
 
 ### Operation Set
@@ -77,6 +77,7 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 | 50 | `ScaleVec` | `v[N] s` → `(s * v)[N]` | Vector scalar multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
 | 51 | `MulMat` | `v[rows]` → `(v * M)[cols]` | Vector-matrix multiplication $w = v \cdot M$ with immediate matrix $M$ | **1 byte dimension**:<br>• `[1:0]`: `rows - 1` (0..3 for 1..4 input dimensions / rows in $M$)<br>• `[3:2]`: Reserved (must be 0)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions / cols in $M$)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit floats ($M$ in column-major order: column by column) |
 | 52 | `Poly` | `t` → `P(t)[cols]` | Polynomial evaluation for scalar $t$ with immediate coefficients | **1 byte dimension**:<br>• `[3:0]`: `rows - 1` (0..15 for 1..16 coefficients per column / degree + 1)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit float coefficients (degree by degree from highest order down to constant term: for each degree, column 0 to cols-1) |
+| 255 | `Ret` | — | End of program (terminates evaluation) | *None* |
 
 ### Embedded Memory & Acceleration Flags (C++)
 
@@ -105,7 +106,7 @@ Replaces Newlib's ~3.1 KB software range-reduction machinery and ~0.8 KB arctang
 
 ### Flash Memory Footprint (Reading & Evaluation Suite)
 
-The tables below report measured flash memory consumption compiled with `-Os` for the execution and reading suite (`WickedPostfixValidate`, `WickedPostfixEvaluate`, `WickedPostfixRead`, and `WickedPostfixOpToString`), excluding `WickedPostfixWriter`.
+The tables below report measured flash memory consumption compiled with `-Os` for the execution and validation suite (`WickedPostfixValidate`, `WickedPostfixEvaluate`, and `WickedPostfixOpToString`), excluding `WickedPostfixWriter`.
 
 * **Library-Only Flash**: Code and constant rodata generated directly by the protocol library (`WickedPostfix.cc` + `WickedMath.cc`).
 * **Transitive Flash**: Net flash delta added to a linked firmware binary with linker dead-stripping (`-Wl,--gc-sections`), capturing the library code plus all transitive standard library (`libm` / Newlib) dependencies.
@@ -114,15 +115,15 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,563 B** (~4.5 KB) | **10,804 B** (~10.6 KB) |
-| **ESP32-S3** (Xtensa LX7) | **5,913 B** (~5.8 KB) | **12,268 B** (~12.0 KB) |
+| **STM32G4** (Cortex-M4F) | **4,571 B** (~4.5 KB) | **10,788 B** (~10.5 KB) |
+| **ESP32-S3** (Xtensa LX7) | **5,911 B** (~5.8 KB) | **12,240 B** (~12.0 KB) |
 
 #### Fast Exp Math (`-DWICKED_USE_FAST_EXP_MATH`)
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,367 B** (~4.3 KB) | **9,876 B** (~9.6 KB) | **928 B (~0.9 KB)** |
-| **ESP32-S3** (Xtensa LX7) | **5,689 B** (~5.6 KB) | **11,368 B** (~11.1 KB) | **900 B (~0.9 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,375 B** (~4.3 KB) | **9,860 B** (~9.6 KB) | **928 B (~0.9 KB)** |
+| **ESP32-S3** (Xtensa LX7) | **5,687 B** (~5.6 KB) | **11,340 B** (~11.1 KB) | **900 B (~0.9 KB)** |
 
 #### Hardware CORDIC (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_STM32_CORDIC`)
 
@@ -130,7 +131,7 @@ Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,635 B** (~4.5 KB) | **5,148 B** (~5.0 KB) | **5,656 B (~5.5 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,643 B** (~4.5 KB) | **5,132 B** (~5.0 KB) | **5,656 B (~5.5 KB)** |
 
 #### CMSIS-DSP (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_CMSIS_DSP`)
 
@@ -138,7 +139,7 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,367 B** (~4.3 KB) | **8,340 B** (~8.1 KB) | **2,464 B (~2.4 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,375 B** (~4.3 KB) | **8,324 B** (~8.1 KB) | **2,464 B (~2.4 KB)** |
 
 > [!NOTE]
 > **Firmware Considerations for CORDIC:**
@@ -147,10 +148,9 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 > * **Range & Scale Normalization:** The embedded CORDIC helper automatically maps arbitrary angles in radians to $[-1.0, 1.0)$ for $\sin$/$\cos$, and scales Cartesian inputs by $1 / \max(|x|, |y|)$ for $\text{atan2}$, requiring zero table lookups or standard library calls.
 
 #### Section Breakdown (STM32G4, Thumb-2)
-* **Bytecode Validation (`WickedPostfixValidate`)**: ~572 B `.text`
-* **Bytecode Evaluation (`WickedPostfixEvaluate`)**: ~2,552 B `.text`
-* **Reader & Utilities (`WickedPostfixRead`, `copy_n`)**: ~58 B `.text`
-* **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~561 B `.rodata`
+* **Bytecode Validation (`WickedPostfixValidate`)**: ~588 B `.text`
+* **Bytecode Evaluation (`WickedPostfixEvaluate`)**: ~2,560 B `.text`
+* **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~577 B `.rodata`
 
 #### Helper Math Functions (`WickedMath.h`, Thumb-2)
 * **Fast Exponential (`wicked_fast_expf`)**: ~200 B `.text`

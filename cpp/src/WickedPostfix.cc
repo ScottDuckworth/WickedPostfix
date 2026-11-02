@@ -10,8 +10,6 @@
 
 static_assert(std::endian::native == std::endian::little);
 static_assert(sizeof(float) == 4);
-static_assert(sizeof(WickedPostfixHeader) == 2);
-static_assert(alignof(WickedPostfixHeader) == 1);
 
 #if defined(_MSC_VER)
 #define WICKED_ALWAYS_INLINE __forceinline
@@ -25,6 +23,7 @@ static_assert(alignof(WickedPostfixHeader) == 1);
 #endif
 
 extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
+  if (op == WickedPostfixOp_Ret) return "Ret";
   switch (op) {
     case WickedPostfixOp_Undefined: return "Undefined";
     case WickedPostfixOp_Push:      return "Push";
@@ -81,18 +80,6 @@ extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
     case WickedPostfixOp_Poly:      return "Poly";
   }
   return "UNKNOWN";
-}
-
-extern "C" bool WickedPostfixRead(const uint8_t* data, size_t size, const uint8_t** prog_data, uint16_t* prog_size) {
-  if (size < sizeof(WickedPostfixHeader)) return false;
-  uint16_t p_size;
-  memcpy(&p_size, data, sizeof(uint16_t));
-  constexpr size_t prog_offset = sizeof(WickedPostfixHeader);
-  size_t total_size = prog_offset + p_size;
-  if (size != total_size) return false;
-  if (prog_data) *prog_data = data + prog_offset;
-  if (prog_size) *prog_size = p_size;
-  return true;
 }
 
 namespace {
@@ -352,16 +339,25 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t Poly(ValidationContext& ctx) {
 }  // namespace validate
 }  // namespace
 
-extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, uint16_t prog_size, uint16_t initial_stack_size, uint16_t* minimum_stack_capacity, uint16_t* final_stack_size) {
+extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, size_t buffer_size, uint16_t initial_stack_size, uint16_t* minimum_stack_capacity, uint16_t* final_stack_size) {
+  if (!prog_data || buffer_size == 0) {
+    return WickedEvalStatus_IllegalOperation;
+  }
+
   ValidationContext ctx{
     .pc = prog_data,
-    .pc_end = prog_data + prog_size,
+    .pc_end = prog_data + buffer_size,
     .stack_depth = initial_stack_size,
     .max_stack_depth = initial_stack_size,
   };
 
+  bool returned = false;
   while (ctx.pc < ctx.pc_end) {
     uint8_t op = ctx.fetch_byte();
+    if (op == WickedPostfixOp_Ret) {
+      returned = true;
+      break;
+    }
     WickedEvalStatus_t status = WickedEvalStatus_Ok;
 
     switch (op) {
@@ -424,6 +420,10 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, ui
     if (status != WickedEvalStatus_Ok) {
       return status;
     }
+  }
+
+  if (!returned) {
+    return WickedEvalStatus_IllegalOperation;
   }
 
   if (ctx.max_stack_depth > UINT16_MAX) {
@@ -974,17 +974,17 @@ WICKED_ALWAYS_INLINE void Poly(EvalContext& ctx) {
 }  // namespace ops
 }  // namespace
 
-extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t prog_size, uint16_t initial_stack_size, float* stack_data) {
+extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t initial_stack_size, float* stack_data) {
   EvalContext ctx{
     .pc = prog_data,
     .sp = stack_data + initial_stack_size,
     .base = stack_data,
   };
-  const uint8_t* const pc_end = prog_data + prog_size;
 
-  while (ctx.pc < pc_end) {
+  while (true) {
     const uint8_t op = ctx.fetch_byte();
     switch (op) {
+      case WickedPostfixOp_Ret:       return;
       case WickedPostfixOp_Push:      ops::Push(ctx); break;
       case WickedPostfixOp_Dup:       ops::Dup(ctx); break;
       case WickedPostfixOp_Over:      ops::Over(ctx); break;

@@ -1,7 +1,6 @@
 package postfix
 
 import (
-	"cmp"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -83,6 +82,7 @@ const (
 	Operation_ScaleVec   Operation = 50
 	Operation_MulMat     Operation = 51
 	Operation_Poly       Operation = 52
+	Operation_Ret        Operation = 255
 )
 
 // Expression represents an immutable bytecode sequence of postfix operations.
@@ -90,7 +90,7 @@ type Expression struct {
 	Prog []uint8
 }
 
-// PostfixHeader represents the wire and storage header preceding the bytecode program.
+// PostfixHeader represents the legacy wire header. Deprecated: expressions are now headerless.
 type PostfixHeader struct {
 	ProgSize uint16
 }
@@ -204,6 +204,8 @@ func (op Operation) String() string {
 		return "MulMat"
 	case Operation_Poly:
 		return "Poly"
+	case Operation_Ret:
+		return "Ret"
 	default:
 		return fmt.Sprintf("unknown[%d]", op)
 	}
@@ -223,26 +225,30 @@ func (expr Expression) String() string {
 	return sb.String()
 }
 
-// Write serializes the expression with its PostfixHeader to the given writer in little-endian format.
+// Write serializes the expression bytecode directly to the given writer.
 func (expr *Expression) Write(w io.Writer) error {
-	header := PostfixHeader{
-		ProgSize: uint16(len(expr.Prog)),
-	}
-	return cmp.Or(
-		binary.Write(w, binary.LittleEndian, &header),
-		binary.Write(w, binary.LittleEndian, &expr.Prog),
-	)
+	return binary.Write(w, binary.LittleEndian, &expr.Prog)
 }
 
-// Read deserializes a PostfixHeader and subsequent bytecode bytes from the given reader.
+// Read deserializes bytecode bytes from the given reader until Operation_Ret or EOF.
 func (expr *Expression) Read(r io.Reader) error {
-	var header PostfixHeader
-	err := binary.Read(r, binary.LittleEndian, &header)
-	if err != nil {
-		return err
+	expr.Prog = nil
+	var b [1]byte
+	for {
+		n, err := r.Read(b[:])
+		if n > 0 {
+			expr.Prog = append(expr.Prog, b[0])
+			if Operation(b[0]) == Operation_Ret {
+				return nil
+			}
+		}
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 	}
-	expr.Prog = make([]uint8, header.ProgSize)
-	return binary.Read(r, binary.LittleEndian, &expr.Prog)
 }
 
 // Equal reports whether two expressions have identical bytecode programs.
@@ -253,8 +259,20 @@ func Equal(a, b *Expression) bool {
 // Join concatenates multiple expressions into a single sequential expression.
 func Join(exprs ...*Expression) *Expression {
 	result := &Expression{}
+	hasAny := false
 	for _, expr := range exprs {
-		result.Prog = append(result.Prog, expr.Prog...)
+		if expr == nil || len(expr.Prog) == 0 {
+			continue
+		}
+		hasAny = true
+		prog := expr.Prog
+		for len(prog) > 0 && Operation(prog[len(prog)-1]) == Operation_Ret {
+			prog = prog[:len(prog)-1]
+		}
+		result.Prog = append(result.Prog, prog...)
+	}
+	if hasAny {
+		result.Prog = append(result.Prog, uint8(Operation_Ret))
 	}
 	return result
 }
@@ -269,8 +287,17 @@ func MakeBuilder() *Builder {
 	return &Builder{}
 }
 
-// Build returns the completed postfix Expression constructed by this builder.
+// Ret appends an Operation_Ret instruction (end of program).
+func (b *Builder) Ret() *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Ret))
+	return b
+}
+
+// Build returns the completed postfix Expression constructed by this builder, ensuring trailing Ret.
 func (b *Builder) Build() *Expression {
+	if len(b.expr.Prog) == 0 || Operation(b.expr.Prog[len(b.expr.Prog)-1]) != Operation_Ret {
+		b.expr.Prog = append(b.expr.Prog, uint8(Operation_Ret))
+	}
 	return &b.expr
 }
 
@@ -753,8 +780,14 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 		return int(v)
 	}
 
+	returned := false
 	for avail() > 0 {
 		op := Operation(fetchByte())
+		if op == Operation_Ret {
+			returned = true
+			ops = append(ops, op)
+			break
+		}
 		switch op {
 		case Operation_Undefined:
 			return 0, 0, nil, ErrUndefinedOperation
@@ -1002,6 +1035,10 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 		ops = append(ops, op)
 	}
 
+	if !returned {
+		return 0, 0, nil, ErrIllegalOperation
+	}
+
 	if maxStackLen > math.MaxUint16 {
 		return 0, 0, nil, ErrStackOverflow
 	}
@@ -1062,6 +1099,9 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 
 	for pc < len(expr.Prog) {
 		op := Operation(fetchByte())
+		if op == Operation_Ret {
+			return stack
+		}
 		switch op {
 		case Operation_Push:
 			stack = append(stack, fetchFloat())

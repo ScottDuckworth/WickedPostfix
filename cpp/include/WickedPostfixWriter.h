@@ -350,6 +350,9 @@ class WickedPostfixEmitter {
   void PolyVec(std::initializer_list<float> coeffs) { Poly(coeffs); }
   void PolyMat(uint8_t rows, uint8_t cols, std::span<const float> coeffs) { Poly(rows, cols, coeffs); }
   void PolyMat(uint8_t rows, uint8_t cols, std::initializer_list<float> coeffs) { Poly(rows, cols, coeffs); }
+
+  // Terminates postfix evaluation (returns from program).
+  void Ret() { EmitOp(WickedPostfixOp_Ret); }
 };
 
 // In-place, zero-allocation, bounds-checked streaming writer.
@@ -358,13 +361,7 @@ class WickedPostfixStreamWriter : public WickedPostfixEmitter<WickedPostfixStrea
  public:
   // Constructs a streaming writer targeting a buffer of given capacity.
   WickedPostfixStreamWriter(uint8_t* dest, size_t capacity)
-      : dest_(dest), capacity_(capacity) {
-    if (capacity_ >= sizeof(WickedPostfixHeader)) {
-      offset_ = sizeof(WickedPostfixHeader);
-    } else {
-      overflow_ = true;
-    }
-  }
+      : dest_(dest), capacity_(capacity), offset_(0), overflow_(dest == nullptr && capacity > 0) {}
 
   // Constructs a streaming writer targeting a std::span buffer.
   explicit WickedPostfixStreamWriter(std::span<uint8_t> buffer)
@@ -380,15 +377,15 @@ class WickedPostfixStreamWriter : public WickedPostfixEmitter<WickedPostfixStrea
     offset_++;
   }
 
-  // Finalizes the bytecode stream: validates bounds and patches the 2-byte header with prog_size.
+  // Finalizes the bytecode stream: appends Ret (if not already emitted) and validates bounds.
   // Returns true on success, false if buffer overflowed or exceeds 65535 bytes.
   bool Finalize() {
-    if (overflow_ || offset_ < sizeof(WickedPostfixHeader)) return false;
-    size_t prog_sz = offset_ - sizeof(WickedPostfixHeader);
-    if (prog_sz > UINT16_MAX) return false;
-
-    auto* header = reinterpret_cast<WickedPostfixHeader*>(dest_);
-    header->prog_size = static_cast<uint16_t>(prog_sz);
+    if (overflow_) return false;
+    if (offset_ == 0 || dest_[offset_ - 1] != static_cast<uint8_t>(WickedPostfixOp_Ret)) {
+      EmitByte(static_cast<uint8_t>(WickedPostfixOp_Ret));
+      if (overflow_) return false;
+    }
+    if (offset_ > UINT16_MAX) return false;
     return true;
   }
 
@@ -398,28 +395,22 @@ class WickedPostfixStreamWriter : public WickedPostfixEmitter<WickedPostfixStrea
   // Returns true if write operations exceeded capacity.
   bool overflow() const { return overflow_; }
 
-  // Total bytes successfully written so far (including header). Returns 0 on overflow.
+  // Total bytes successfully written so far. Returns 0 on overflow.
   size_t bytes_written() const { return overflow_ ? 0 : offset_; }
 
-  // Total bytes required for header + bytecode (tracks total needed even after overflow).
+  // Total bytes required for bytecode (tracks total needed even after overflow).
   size_t bytes_needed() const { return offset_; }
 
-  // Size of bytecode payload in bytes (excluding header).
+  // Size of bytecode payload in bytes.
   uint16_t prog_size() const {
-    return (offset_ > sizeof(WickedPostfixHeader))
-               ? static_cast<uint16_t>(offset_ - sizeof(WickedPostfixHeader))
-               : 0;
+    return static_cast<uint16_t>(overflow_ ? 0 : offset_);
   }
 
-  // Pointer to bytecode payload (excluding header).
-  const uint8_t* prog_data() const {
-    return dest_ ? dest_ + sizeof(WickedPostfixHeader) : nullptr;
-  }
-  uint8_t* prog_data() {
-    return dest_ ? dest_ + sizeof(WickedPostfixHeader) : nullptr;
-  }
+  // Pointer to bytecode payload.
+  const uint8_t* prog_data() const { return dest_; }
+  uint8_t* prog_data() { return dest_; }
 
-  // Pointer to entire serialized buffer (including header).
+  // Pointer to entire serialized buffer.
   const uint8_t* data() const { return dest_; }
   uint8_t* data() { return dest_; }
 
@@ -442,19 +433,24 @@ class WickedPostfixWriter : public WickedPostfixEmitter<WickedPostfixWriter> {
   const uint8_t* prog_data() const { return prog_.data(); }
   // Bytecode size in bytes.
   uint16_t prog_size() const { return static_cast<uint16_t>(prog_.size()); }
-  // Total serialized size including header.
-  uint16_t data_size() const { return prog_offset() + prog_size(); }
+  // Total serialized size including trailing Ret if not already present.
+  uint16_t data_size() const {
+    return static_cast<uint16_t>(prog_.size() + (ends_with_ret() ? 0 : 1));
+  }
 
-  // Serializes header and bytecode into the provided buffer.
+  // Serializes bytecode into the provided buffer, ensuring trailing Ret.
   bool Write(uint8_t* data, size_t size) const {
     if (size < data_size()) return false;
-    auto* header = reinterpret_cast<WickedPostfixHeader*>(data);
-    header->prog_size = prog_size();
-    std::memcpy(data + prog_offset(), prog_data(), prog_size());
+    if (!prog_.empty()) {
+      std::memcpy(data, prog_.data(), prog_.size());
+    }
+    if (!ends_with_ret()) {
+      data[prog_.size()] = static_cast<uint8_t>(WickedPostfixOp_Ret);
+    }
     return true;
   }
 
-  // Serializes header and bytecode into a newly allocated vector.
+  // Serializes bytecode into a newly allocated vector, ensuring trailing Ret.
   std::vector<uint8_t> Write() const {
     std::vector<uint8_t> buffer(data_size());
     Write(buffer.data(), buffer.size());
@@ -468,6 +464,8 @@ class WickedPostfixWriter : public WickedPostfixEmitter<WickedPostfixWriter> {
   void EmitByte(uint8_t b) { prog_.push_back(b); }
 
  private:
-  constexpr uint16_t prog_offset() const { return sizeof(WickedPostfixHeader); }
+  bool ends_with_ret() const {
+    return !prog_.empty() && prog_.back() == static_cast<uint8_t>(WickedPostfixOp_Ret);
+  }
   std::vector<uint8_t> prog_;
 };

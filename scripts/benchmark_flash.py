@@ -36,14 +36,11 @@ volatile float g_out = 0.0f;
 volatile WickedEvalStatus_t g_status;
 
 int main(void) {
-    uint8_t buf[64] = {0};
-    const uint8_t* prog = nullptr;
-    uint16_t size = 0;
-    WickedPostfixRead(buf, sizeof(buf), &prog, &size);
+    uint8_t buf[64] = {WickedPostfixOp_Ret};
     uint16_t min_cap = 0, final_sz = 0;
-    g_status = WickedPostfixValidate(prog, size, 4, &min_cap, &final_sz);
+    g_status = WickedPostfixValidate(buf, sizeof(buf), 4, &min_cap, &final_sz);
     float stack[16] = {1.0f, 2.0f, 3.0f};
-    WickedPostfixEvaluate(prog, size, 3, stack);
+    WickedPostfixEvaluate(buf, 3, stack);
     g_out = stack[0];
     const char* name = WickedPostfixOpToString(WickedPostfixOp_Add);
     if (name[0] == 'A') g_out += 1.0f;
@@ -461,12 +458,10 @@ def main():
         secs = results["stm32_default"]["sections"]
         val_sz = sum(v for k, v in secs.items() if "WickedPostfixValidate" in k)
         eval_sz = sum(v for k, v in secs.items() if "WickedPostfixEvaluate" in k)
-        read_sz = sum(v for k, v in secs.items() if "WickedPostfixRead" in k or "copy_n" in k)
         str_sz = sum(v for k, v in secs.items() if "WickedPostfixOpToString" in k or "CSWTCH" in k or "str1.1" in k)
         print("\nSection Breakdown for STM32G4 Default (Thumb-2):")
         print(f"  * WickedPostfixValidate:    ~{val_sz} B")
         print(f"  * WickedPostfixEvaluate:    ~{eval_sz} B")
-        print(f"  * WickedPostfixRead/copy_n: ~{read_sz} B")
         print(f"  * OpToString / Switch:      ~{str_sz} B")
 
     # Math helper functions in WickedMath.h

@@ -1024,16 +1024,16 @@ func TestVectorBuilderSizeValidation(t *testing.T) {
 
 	// Verify size - 1 is encoded
 	expr := postfix.MakeBuilder().AddVec(3).Build()
-	if len(expr.Prog) != 2 || expr.Prog[0] != uint8(postfix.Operation_AddVec) || expr.Prog[1] != 2 {
-		t.Errorf("expected Prog [Operation_AddVec, 2], got %v", expr.Prog)
+	if len(expr.Prog) != 3 || expr.Prog[0] != uint8(postfix.Operation_AddVec) || expr.Prog[1] != 2 || expr.Prog[2] != uint8(postfix.Operation_Ret) {
+		t.Errorf("expected Prog [Operation_AddVec, 2, Operation_Ret], got %v", expr.Prog)
 	}
 	expr1 := postfix.MakeBuilder().AddVec(1).Build()
-	if len(expr1.Prog) != 2 || expr1.Prog[1] != 0 {
-		t.Errorf("expected size 1 to encode operand 0, got %d", expr1.Prog[1])
+	if len(expr1.Prog) != 3 || expr1.Prog[1] != 0 || expr1.Prog[2] != uint8(postfix.Operation_Ret) {
+		t.Errorf("expected size 1 to encode operand 0, got %v", expr1.Prog)
 	}
 	expr255 := postfix.MakeBuilder().AddVec(255).Build()
-	if len(expr255.Prog) != 2 || expr255.Prog[1] != 254 {
-		t.Errorf("expected size 255 to encode operand 254, got %d", expr255.Prog[1])
+	if len(expr255.Prog) != 3 || expr255.Prog[1] != 254 || expr255.Prog[2] != uint8(postfix.Operation_Ret) {
+		t.Errorf("expected size 255 to encode operand 254, got %v", expr255.Prog)
 	}
 }
 
@@ -1070,5 +1070,30 @@ func TestOperationString(t *testing.T) {
 	}
 	if got := postfix.Operation_PanTilt.String(); got != "PanTilt" {
 		t.Errorf("got %q, want %q", got, "PanTilt")
+	}
+	if got := postfix.Operation_Ret.String(); got != "Ret" {
+		t.Errorf("got %q, want %q", got, "Ret")
+	}
+}
+
+func TestRetSemantics(t *testing.T) {
+	// Erased flash simulation: 0xFF terminates cleanly
+	flashExpr := &postfix.Expression{Prog: []uint8{255, 255}}
+	minCap, finalLen, ops, err := postfix.Validate(flashExpr, 2)
+	if err != nil {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+	if minCap != 2 || finalLen != 2 || len(ops) != 1 || ops[0] != postfix.Operation_Ret {
+		t.Errorf("unexpected validation result: cap=%d, len=%d, ops=%v", minCap, finalLen, ops)
+	}
+	gotStack := flashExpr.Evaluate([]float64{10, 20})
+	if !equalSlices(gotStack, []float64{10, 20}) {
+		t.Errorf("got %v, want [10 20]", gotStack)
+	}
+
+	// Missing Ret fails validation
+	noRetExpr := &postfix.Expression{Prog: []uint8{uint8(postfix.Operation_Push), 0, 0, 0, 0}}
+	if _, _, _, err := postfix.Validate(noRetExpr, 0); err != postfix.ErrIllegalOperation {
+		t.Errorf("got err %v, want ErrIllegalOperation", err)
 	}
 }
