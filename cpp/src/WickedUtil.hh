@@ -236,10 +236,10 @@ static inline float wicked_fast_powf(float x, float y) {
     return (y > 0.0f) ? 0.0f : std::numeric_limits<float>::infinity();
   }
   if (x < 0.0f) {
-    float intpart;
-    if (std::modf(y, &intpart) == 0.0f) {
+    if (std::floor(y) == y) {
+      bool is_odd = (std::abs(y) < 16777216.0f) && (static_cast<int32_t>(y) & 1);
       float res = wicked_fast_expf(y * wicked_fast_logf(-x));
-      return (static_cast<int64_t>(intpart) & 1) ? -res : res;
+      return is_odd ? -res : res;
     }
     return std::numeric_limits<float>::quiet_NaN();
   }
@@ -274,10 +274,10 @@ static inline float wicked_derived_powf(float x, float y) {
     return (y > 0.0f) ? 0.0f : std::numeric_limits<float>::infinity();
   }
   if (x < 0.0f) {
-    float intpart;
-    if (std::modf(y, &intpart) == 0.0f) {
+    if (std::floor(y) == y) {
+      bool is_odd = (std::abs(y) < 16777216.0f) && (static_cast<int32_t>(y) & 1);
       float res = wicked_expf(y * wicked_logf(-x));
-      return (static_cast<int64_t>(intpart) & 1) ? -res : res;
+      return is_odd ? -res : res;
     }
     return std::numeric_limits<float>::quiet_NaN();
   }
