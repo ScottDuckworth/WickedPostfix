@@ -66,7 +66,8 @@ WickedEvalStatus_t WickedPostfixValidate(TestEval* eval, uint16_t expected_final
 }
 
 void WickedPostfixEvaluate(TestEval* eval) {
-  ::WickedPostfixEvaluate(eval->prog_data, eval->stack_size, eval->stack_data);
+  float* end_sp = ::WickedPostfixEvaluate(eval->prog_data, eval->stack_size, eval->stack_data);
+  EXPECT_EQ(end_sp - eval->stack_data, eval->final_stack_size);
   eval->stack_size = eval->final_stack_size;
 }
 

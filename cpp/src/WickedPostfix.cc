@@ -578,7 +578,7 @@ namespace {
 struct EvalContext {
   const uint8_t* pc;
   float* sp;
-  float* const base;
+  float* const stack_base;
   const uint8_t* const root_prog;
 
   WICKED_ALWAYS_INLINE uint8_t fetch_byte() {
@@ -708,7 +708,7 @@ WICKED_ALWAYS_INLINE void CopyBase(EvalContext& ctx) {
   uint8_t arg = ctx.fetch_byte();
   uint8_t index = arg & 0x1F;
   uint8_t size = (arg >> 5) + 1;
-  std::copy_n(ctx.base + index, size, ctx.sp);
+  std::copy_n(ctx.stack_base + index, size, ctx.sp);
   ctx.sp += size;
 }
 
@@ -1115,7 +1115,7 @@ WICKED_ALWAYS_INLINE void Poly(EvalContext& ctx) {
 
 WICKED_ALWAYS_INLINE void Call(EvalContext& ctx) {
   uint16_t target_offset = ctx.fetch_uint16();
-  ctx.sp = WickedPostfixEvaluateInternal(ctx.root_prog, ctx.root_prog + target_offset, ctx.sp, ctx.base);
+  ctx.sp = WickedPostfixEvaluateInternal(ctx.root_prog, ctx.root_prog + target_offset, ctx.sp, ctx.stack_base);
 }
 
 WICKED_ALWAYS_INLINE void Piecewise(EvalContext& ctx) {
@@ -1154,17 +1154,20 @@ WICKED_ALWAYS_INLINE void Piecewise(EvalContext& ctx) {
 
   ctx.pc = offsets_ptr + (num_knots + 1) * sizeof(uint16_t);
 
-  ctx.sp = WickedPostfixEvaluateInternal(ctx.root_prog, ctx.root_prog + target_offset, ctx.sp, ctx.base);
+  ctx.sp = WickedPostfixEvaluateInternal(ctx.root_prog, ctx.root_prog + target_offset, ctx.sp, ctx.stack_base);
 }
 
 }  // namespace ops
 }  // namespace
 
-extern "C" float* WickedPostfixEvaluateInternal(const uint8_t* root_prog, const uint8_t* entry_pc, float* sp, float* base) {
+// Evaluates bytecode starting at entry_pc within root_prog, using initial stack pointer sp
+// and stack boundary stack_base. Execution continues in-place without bounds checking until
+// WickedPostfixOp_Ret is reached. Returns the updated stack pointer upon return.
+extern "C" float* WickedPostfixEvaluateInternal(const uint8_t* root_prog, const uint8_t* entry_pc, float* sp, float* stack_base) {
   EvalContext ctx{
     .pc = entry_pc,
     .sp = sp,
-    .base = base,
+    .stack_base = stack_base,
     .root_prog = root_prog,
   };
 

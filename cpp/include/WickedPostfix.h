@@ -78,14 +78,15 @@ const char* WickedPostfixOpToString(WickedPostfixOp_t op);
 WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, size_t buffer_size, uint16_t initial_stack_size, uint16_t* minimum_stack_capacity, uint16_t* final_stack_size);
 
 // Evaluates bytecode starting at entry_pc within root_prog, using initial stack pointer sp
-// and stack boundary base. Execution continues in-place without bounds checking until
+// and stack boundary stack_base. Execution continues in-place without bounds checking until
 // WickedPostfixOp_Ret is reached. Returns the updated stack pointer upon return.
-float* WickedPostfixEvaluateInternal(const uint8_t* root_prog, const uint8_t* entry_pc, float* sp, float* base);
+float* WickedPostfixEvaluateInternal(const uint8_t* root_prog, const uint8_t* entry_pc, float* sp, float* stack_base);
 
-// Evaluates bytecode on stack_data in-place without bounds checking until WickedPostfixOp_Ret is reached.
-static inline void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t initial_stack_size, float* stack_data) {
-  float* sp = stack_data + initial_stack_size;
-  WickedPostfixEvaluateInternal(prog_data, prog_data, sp, stack_data);
+// Evaluates bytecode on stack_base in-place without bounds checking until WickedPostfixOp_Ret is reached.
+// Returns the updated stack pointer upon return.
+static inline float* WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t initial_stack_size, float* stack_base) {
+  float* sp = stack_base + initial_stack_size;
+  return WickedPostfixEvaluateInternal(prog_data, prog_data, sp, stack_base);
 }
 
 #ifdef __cplusplus
