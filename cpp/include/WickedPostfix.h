@@ -99,12 +99,4 @@ void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t initial_stack_size
 
 #ifdef __cplusplus
 }
-
-#include <ostream>
-
-// Formats opcode name to output stream.
-inline std::ostream& operator<<(std::ostream& out, WickedPostfixOp_t op) {
-  return out << WickedPostfixOpToString(op);
-}
-
 #endif
