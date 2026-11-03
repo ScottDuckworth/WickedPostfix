@@ -341,6 +341,17 @@ func (b *Builder) DefineSubroutine(fn func(sub *Builder)) SubroutineHandle {
 	return SubroutineHandle{index: idx}
 }
 
+// DefineSubroutineExpr defines a subroutine from an existing compiled Expression.
+func (b *Builder) DefineSubroutineExpr(subExpr *Expression) SubroutineHandle {
+	prog := slices.Clone(subExpr.Prog)
+	if len(prog) == 0 || Operation(prog[len(prog)-1]) != Operation_Ret {
+		prog = append(prog, uint8(Operation_Ret))
+	}
+	idx := len(b.subroutines)
+	b.subroutines = append(b.subroutines, prog)
+	return SubroutineHandle{index: idx}
+}
+
 // Call emits an unconditional subroutine call to a defined subroutine with automatic backpatching.
 func (b *Builder) Call(sub SubroutineHandle) *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Call))

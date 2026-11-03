@@ -1105,6 +1105,26 @@ func TestCallAndPiecewise(t *testing.T) {
 		_ = minCap
 	})
 
+	t.Run("call subroutine expr", func(t *testing.T) {
+		sqExpr := postfix.MakeBuilder().Dup().Mul().Build()
+		b := postfix.MakeBuilder()
+		sq := b.DefineSubroutineExpr(sqExpr)
+		b.Push(6.0).Call(sq)
+		expr := b.Build()
+
+		_, finalLen, _, err := postfix.Validate(expr, 0)
+		if err != nil {
+			t.Fatalf("unexpected validation error: %v", err)
+		}
+		if finalLen != 1 {
+			t.Fatalf("want finalLen 1, got %d", finalLen)
+		}
+		stack := expr.Evaluate(nil)
+		if len(stack) != 1 || stack[0] != 36.0 {
+			t.Fatalf("got %v, want [36.0]", stack)
+		}
+	})
+
 	t.Run("call nested", func(t *testing.T) {
 		b := postfix.MakeBuilder()
 		addOne := b.DefineSubroutine(func(sub *postfix.Builder) {
