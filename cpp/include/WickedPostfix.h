@@ -6,14 +6,6 @@
 #include <stdint.h>
 #include <string.h>
 
-// Postfix engine math optimizations:
-// - WICKED_USE_FAST_EXP_MATH: enables compact IEEE-754 bit-trick and Horner polynomial
-//   approximations for Exp, Ln, and Pow, eliminating Newlib libm exponential dependencies.
-// - Custom overrides: WICKED_CUSTOM_EXP(x), WICKED_CUSTOM_LN(x), WICKED_CUSTOM_POW(x, y)
-//   allow binding custom vendor DSP or hardware math accelerators.
-// - Note: Pow is derived from Exp and Ln (x^y = exp(y * ln(x))),
-//   dead-stripping Newlib's heavy powf from libm by default.
-
 #ifdef __cplusplus
 extern "C" {
 #endif
