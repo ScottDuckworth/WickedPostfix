@@ -1071,9 +1071,145 @@ func TestOperationString(t *testing.T) {
 	if got := postfix.Operation_PanTilt.String(); got != "PanTilt" {
 		t.Errorf("got %q, want %q", got, "PanTilt")
 	}
+	if got := postfix.Operation_Call.String(); got != "Call" {
+		t.Errorf("got %q, want %q", got, "Call")
+	}
+	if got := postfix.Operation_Piecewise.String(); got != "Piecewise" {
+		t.Errorf("got %q, want %q", got, "Piecewise")
+	}
 	if got := postfix.Operation_Ret.String(); got != "Ret" {
 		t.Errorf("got %q, want %q", got, "Ret")
 	}
+}
+
+func TestCallAndPiecewise(t *testing.T) {
+	t.Run("call basic", func(t *testing.T) {
+		b := postfix.MakeBuilder()
+		sq := b.DefineSubroutine(func(sub *postfix.Builder) {
+			sub.Dup().Mul()
+		})
+		b.Push(5.0).Call(sq)
+		expr := b.Build()
+
+		minCap, finalLen, _, err := postfix.Validate(expr, 0)
+		if err != nil {
+			t.Fatalf("unexpected validation error: %v", err)
+		}
+		if finalLen != 1 {
+			t.Fatalf("want finalLen 1, got %d", finalLen)
+		}
+		stack := expr.Evaluate(nil)
+		if len(stack) != 1 || stack[0] != 25.0 {
+			t.Fatalf("got %v, want [25.0]", stack)
+		}
+		_ = minCap
+	})
+
+	t.Run("call nested", func(t *testing.T) {
+		b := postfix.MakeBuilder()
+		addOne := b.DefineSubroutine(func(sub *postfix.Builder) {
+			sub.Push(1.0).Add()
+		})
+		addTwo := b.DefineSubroutine(func(sub *postfix.Builder) {
+			sub.Call(addOne).Call(addOne)
+		})
+		b.Push(10.0).Call(addTwo)
+		expr := b.Build()
+
+		_, finalLen, _, err := postfix.Validate(expr, 0)
+		if err != nil {
+			t.Fatalf("unexpected validation error: %v", err)
+		}
+		if finalLen != 1 {
+			t.Fatalf("want finalLen 1, got %d", finalLen)
+		}
+		stack := expr.Evaluate(nil)
+		if len(stack) != 1 || stack[0] != 12.0 {
+			t.Fatalf("got %v, want [12.0]", stack)
+		}
+	})
+
+	t.Run("piecewise relative", func(t *testing.T) {
+		testVal := func(inX float64) float64 {
+			b := postfix.MakeBuilder()
+			b0 := b.DefineSubroutine(func(sub *postfix.Builder) {
+				sub.Push(1.0).Nip()
+			})
+			b1 := b.DefineSubroutine(func(sub *postfix.Builder) {
+				sub.Dup().Mul()
+			})
+			b2 := b.DefineSubroutine(func(sub *postfix.Builder) {
+				sub.Push(100.0).Nip()
+			})
+			b.Push(inX).PiecewiseRelative([]float32{0.0, 10.0}, []postfix.SubroutineHandle{b0, b1, b2})
+			expr := b.Build()
+
+			_, _, _, err := postfix.Validate(expr, 0)
+			if err != nil {
+				t.Fatalf("validation failed: %v", err)
+			}
+			stack := expr.Evaluate(nil)
+			return stack[0]
+		}
+
+		if got := testVal(-5.0); got != 1.0 {
+			t.Errorf("x=-5: got %f, want 1.0", got)
+		}
+		if got := testVal(0.0); got != 0.0 {
+			t.Errorf("x=0: got %f, want 0.0", got)
+		}
+		if got := testVal(3.0); got != 9.0 {
+			t.Errorf("x=3: got %f, want 9.0", got)
+		}
+		if got := testVal(10.0); got != 100.0 {
+			t.Errorf("x=10: got %f, want 100.0", got)
+		}
+		if got := testVal(15.0); got != 100.0 {
+			t.Errorf("x=15: got %f, want 100.0", got)
+		}
+	})
+
+	t.Run("piecewise absolute", func(t *testing.T) {
+		testAbs := func(inX float64) float64 {
+			b := postfix.MakeBuilder()
+			neg := b.DefineSubroutine(func(sub *postfix.Builder) {
+				sub.Neg()
+			})
+			id := b.DefineSubroutine(func(sub *postfix.Builder) {
+				// leaves x as-is
+			})
+			b.Push(inX).Piecewise([]float32{0.0}, []postfix.SubroutineHandle{neg, id})
+			expr := b.Build()
+
+			_, _, _, err := postfix.Validate(expr, 0)
+			if err != nil {
+				t.Fatalf("validation failed: %v", err)
+			}
+			stack := expr.Evaluate(nil)
+			return stack[0]
+		}
+
+		if got := testAbs(-7.5); got != 7.5 {
+			t.Errorf("got %f, want 7.5", got)
+		}
+		if got := testAbs(7.5); got != 7.5 {
+			t.Errorf("got %f, want 7.5", got)
+		}
+	})
+
+	t.Run("validation errors", func(t *testing.T) {
+		// Mismatched branch stack sizes
+		b := postfix.MakeBuilder()
+		b0 := b.DefineSubroutine(func(sub *postfix.Builder) {})
+		b1 := b.DefineSubroutine(func(sub *postfix.Builder) {
+			sub.Push(1.0)
+		})
+		b.Push(5.0).Piecewise([]float32{0.0}, []postfix.SubroutineHandle{b0, b1})
+		expr := b.Build()
+		if _, _, _, err := postfix.Validate(expr, 0); err != postfix.ErrUnexpectedStackSize {
+			t.Errorf("got err %v, want ErrUnexpectedStackSize", err)
+		}
+	})
 }
 
 func TestRetSemantics(t *testing.T) {

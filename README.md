@@ -77,7 +77,9 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 | 50 | `ScaleVec` | `v[N] s` → `(s * v)[N]` | Vector scalar multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
 | 51 | `MulMat` | `v[rows]` → `(v * M)[cols]` | Vector-matrix multiplication $w = v \cdot M$ with immediate matrix $M$ | **1 byte dimension**:<br>• `[1:0]`: `rows - 1` (0..3 for 1..4 input dimensions / rows in $M$)<br>• `[3:2]`: Reserved (must be 0)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions / cols in $M$)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit floats ($M$ in column-major order: column by column) |
 | 52 | `Poly` | `t` → `P(t)[cols]` | Polynomial evaluation for scalar $t$ with immediate coefficients | **1 byte dimension**:<br>• `[3:0]`: `rows - 1` (0..15 for 1..16 coefficients per column / degree + 1)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit float coefficients (degree by degree from highest order down to constant term: for each degree, column 0 to cols-1) |
-| 255 | `Ret` | — | End of program (terminates evaluation) | *None* |
+| 253 | `Call` | `...` → `...` | Subroutine call | **2 bytes**: `uint16_t` target byte offset from program start |
+| 254 | `Piecewise` | `... x` → `...` | Piecewise function evaluation over scalar $x$ | **1 byte count**:<br>• `[6:0]`: `num_knots` $N$ ($1 \le N \le 127$)<br>• `[7]`: Mode bit ($0 = \text{Absolute } x, 1 = \text{Relative } x - x_{\text{ref}}$)<br>**Followed by**:<br>• $N \times 4$ bytes of sorted IEEE 754 32-bit float knots ($x_0 < x_1 < \dots < x_{N-1}$)<br>• $(N + 1) \times 2$ bytes of `uint16_t` branch target offsets |
+| 255 | `Ret` | — | End of program or return from subroutine | *None* |
 
 ### Embedded Memory & Acceleration Flags (C++)
 
@@ -115,15 +117,15 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,571 B** (~4.5 KB) | **10,788 B** (~10.5 KB) |
-| **ESP32-S3** (Xtensa LX7) | **5,911 B** (~5.8 KB) | **12,240 B** (~12.0 KB) |
+| **STM32G4** (Cortex-M4F) | **5,296 B** (~5.2 KB) | **11,524 B** (~11.3 KB) |
+| **ESP32-S3** (Xtensa LX7) | **6,640 B** (~6.5 KB) | **12,972 B** (~12.7 KB) |
 
 #### Fast Exp Math (`-DWICKED_USE_FAST_EXP_MATH`)
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,375 B** (~4.3 KB) | **9,860 B** (~9.6 KB) | **928 B (~0.9 KB)** |
-| **ESP32-S3** (Xtensa LX7) | **5,687 B** (~5.6 KB) | **11,340 B** (~11.1 KB) | **900 B (~0.9 KB)** |
+| **STM32G4** (Cortex-M4F) | **5,100 B** (~5.0 KB) | **10,596 B** (~10.3 KB) | **928 B (~0.9 KB)** |
+| **ESP32-S3** (Xtensa LX7) | **6,416 B** (~6.3 KB) | **12,072 B** (~11.8 KB) | **900 B (~0.9 KB)** |
 
 #### Hardware CORDIC (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_STM32_CORDIC`)
 
@@ -131,7 +133,7 @@ Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,643 B** (~4.5 KB) | **5,132 B** (~5.0 KB) | **5,656 B (~5.5 KB)** |
+| **STM32G4** (Cortex-M4F) | **5,368 B** (~5.2 KB) | **5,868 B** (~5.7 KB) | **5,656 B (~5.5 KB)** |
 
 #### CMSIS-DSP (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_CMSIS_DSP`)
 
@@ -139,7 +141,7 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,375 B** (~4.3 KB) | **8,324 B** (~8.1 KB) | **2,464 B (~2.4 KB)** |
+| **STM32G4** (Cortex-M4F) | **5,100 B** (~5.0 KB) | **9,060 B** (~8.8 KB) | **2,464 B (~2.4 KB)** |
 
 > [!NOTE]
 > **Firmware Considerations for CORDIC:**
@@ -148,9 +150,9 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 > * **Range & Scale Normalization:** The embedded CORDIC helper automatically maps arbitrary angles in radians to $[-1.0, 1.0)$ for $\sin$/$\cos$, and scales Cartesian inputs by $1 / \max(|x|, |y|)$ for $\text{atan2}$, requiring zero table lookups or standard library calls.
 
 #### Section Breakdown (STM32G4, Thumb-2)
-* **Bytecode Validation (`WickedPostfixValidate`)**: ~588 B `.text`
-* **Bytecode Evaluation (`WickedPostfixEvaluate`)**: ~2,560 B `.text`
-* **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~577 B `.rodata`
+* **Bytecode Validation (`ValidateInternal`, `ValidateSubroutine`, `WickedPostfixValidate`)**: ~1,078 B `.text`
+* **Bytecode Evaluation (`WickedPostfixEvaluate`, `WickedPostfixEvaluateInternal`)**: ~2,756 B `.text`
+* **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~616 B `.rodata`
 
 #### Helper Math Functions (`WickedMath.h`, Thumb-2)
 * **Fast Exponential (`wicked_fast_expf`)**: ~200 B `.text`

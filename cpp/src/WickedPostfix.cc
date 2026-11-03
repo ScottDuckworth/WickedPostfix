@@ -6,11 +6,13 @@
 #include <cmath>
 #include <cstring>
 #include <iterator>
+#include <limits>
 #include <span>
 
 static_assert(std::endian::native == std::endian::little);
 static_assert(sizeof(float) == 4);
 
+#ifndef WICKED_ALWAYS_INLINE
 #if defined(_MSC_VER)
 #define WICKED_ALWAYS_INLINE __forceinline
 #define WICKED_RESTRICT __restrict
@@ -21,9 +23,12 @@ static_assert(sizeof(float) == 4);
 #define WICKED_ALWAYS_INLINE inline
 #define WICKED_RESTRICT
 #endif
+#endif
 
 extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
   if (op == WickedPostfixOp_Ret) return "Ret";
+  if (op == WickedPostfixOp_Piecewise) return "Piecewise";
+  if (op == WickedPostfixOp_Call) return "Call";
   switch (op) {
     case WickedPostfixOp_Undefined: return "Undefined";
     case WickedPostfixOp_Push:      return "Push";
@@ -85,10 +90,12 @@ extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
 namespace {
 
 struct ValidationContext {
+  const uint8_t* const prog_data;
+  const uint8_t* const prog_end;
   const uint8_t* pc;
-  const uint8_t* const pc_end;
   int32_t stack_depth;
   int32_t max_stack_depth;
+  uint8_t call_depth;
 
   WICKED_ALWAYS_INLINE void update_max(int32_t depth) {
     if (depth > max_stack_depth) {
@@ -97,11 +104,18 @@ struct ValidationContext {
   }
 
   WICKED_ALWAYS_INLINE bool has_bytes(uint16_t n) const {
-    return static_cast<size_t>(pc_end - pc) >= n;
+    return static_cast<size_t>(prog_end - pc) >= n;
   }
 
   WICKED_ALWAYS_INLINE uint8_t fetch_byte() {
     return *pc++;
+  }
+
+  WICKED_ALWAYS_INLINE uint16_t fetch_uint16() {
+    uint16_t u;
+    std::memcpy(&u, pc, sizeof(uint16_t));
+    pc += sizeof(uint16_t);
+    return u;
   }
 
   WICKED_ALWAYS_INLINE float fetch_float() {
@@ -115,6 +129,35 @@ struct ValidationContext {
     pc += n;
   }
 };
+
+static constexpr uint8_t MAX_CALL_DEPTH = 4;
+
+static WickedEvalStatus_t ValidateInternal(
+    const uint8_t* prog_data,
+    const uint8_t* prog_end,
+    const uint8_t* entry_pc,
+    int32_t initial_stack_size,
+    uint8_t call_depth,
+    int32_t* out_max_depth,
+    int32_t* out_final_depth);
+
+static WickedEvalStatus_t ValidateSubroutine(
+    const uint8_t* prog_data,
+    const uint8_t* prog_end,
+    uint16_t target_offset,
+    int32_t initial_stack_size,
+    uint8_t call_depth,
+    int32_t* out_max_depth,
+    int32_t* out_final_depth) {
+  if (target_offset >= static_cast<size_t>(prog_end - prog_data)) {
+    return WickedEvalStatus_IllegalOperation;
+  }
+  if (call_depth >= MAX_CALL_DEPTH) {
+    return WickedEvalStatus_StackOverflow;
+  }
+  return ValidateInternal(
+      prog_data, prog_end, prog_data + target_offset, initial_stack_size, call_depth, out_max_depth, out_final_depth);
+}
 
 namespace validate {
 
@@ -336,23 +379,88 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t Poly(ValidationContext& ctx) {
   return WickedEvalStatus_Ok;
 }
 
-}  // namespace validate
-}  // namespace
-
-extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, size_t buffer_size, uint16_t initial_stack_size, uint16_t* minimum_stack_capacity, uint16_t* final_stack_size) {
-  if (!prog_data || buffer_size == 0) {
+WICKED_ALWAYS_INLINE WickedEvalStatus_t Call(ValidationContext& ctx) {
+  if (!ctx.has_bytes(sizeof(uint16_t))) {
     return WickedEvalStatus_IllegalOperation;
   }
+  uint16_t target_offset = ctx.fetch_uint16();
+  int32_t sub_max = 0, sub_final = 0;
+  WickedEvalStatus_t status = ValidateSubroutine(
+      ctx.prog_data, ctx.prog_end, target_offset, ctx.stack_depth, ctx.call_depth + 1, &sub_max, &sub_final);
+  if (status != WickedEvalStatus_Ok) return status;
+  ctx.update_max(sub_max);
+  ctx.stack_depth = sub_final;
+  ctx.update_max(ctx.stack_depth);
+  return WickedEvalStatus_Ok;
+}
 
+WICKED_ALWAYS_INLINE WickedEvalStatus_t Piecewise(ValidationContext& ctx) {
+  if (ctx.stack_depth < 1) {
+    return WickedEvalStatus_StackUnderflow;
+  }
+  if (!ctx.has_bytes(1)) {
+    return WickedEvalStatus_IllegalOperation;
+  }
+  uint8_t count_byte = ctx.fetch_byte();
+  uint8_t num_knots = count_byte & 0x7F;
+  if (num_knots == 0) {
+    return WickedEvalStatus_IllegalOperation;
+  }
+  size_t req_bytes = static_cast<size_t>(num_knots) * sizeof(float) + static_cast<size_t>(num_knots + 1) * sizeof(uint16_t);
+  if (!ctx.has_bytes(static_cast<uint16_t>(req_bytes))) {
+    return WickedEvalStatus_IllegalOperation;
+  }
+  float prev_k = -std::numeric_limits<float>::infinity();
+  for (uint8_t i = 0; i < num_knots; ++i) {
+    float k = ctx.fetch_float();
+    if (std::isnan(k) || (i > 0 && k <= prev_k)) {
+      return WickedEvalStatus_IllegalOperation;
+    }
+    prev_k = k;
+  }
+  const uint8_t* offsets_ptr = ctx.pc;
+  ctx.skip(static_cast<uint16_t>((num_knots + 1) * sizeof(uint16_t)));
+  int32_t expected_final = 0;
+  for (uint8_t i = 0; i <= num_knots; ++i) {
+    uint16_t branch_offset;
+    std::memcpy(&branch_offset, offsets_ptr + i * sizeof(uint16_t), sizeof(uint16_t));
+    int32_t branch_max = 0, branch_final = 0;
+    WickedEvalStatus_t status = ValidateSubroutine(
+        ctx.prog_data, ctx.prog_end, branch_offset, ctx.stack_depth, ctx.call_depth + 1, &branch_max, &branch_final);
+    if (status != WickedEvalStatus_Ok) return status;
+    if (i == 0) {
+      expected_final = branch_final;
+    } else if (branch_final != expected_final) {
+      return WickedEvalStatus_UnexpectedStackSize;
+    }
+    ctx.update_max(branch_max);
+  }
+  ctx.stack_depth = expected_final;
+  ctx.update_max(ctx.stack_depth);
+  return WickedEvalStatus_Ok;
+}
+
+}  // namespace validate
+
+static WickedEvalStatus_t ValidateInternal(
+    const uint8_t* prog_data,
+    const uint8_t* prog_end,
+    const uint8_t* entry_pc,
+    int32_t initial_stack_size,
+    uint8_t call_depth,
+    int32_t* out_max_depth,
+    int32_t* out_final_depth) {
   ValidationContext ctx{
-    .pc = prog_data,
-    .pc_end = prog_data + buffer_size,
+    .prog_data = prog_data,
+    .prog_end = prog_end,
+    .pc = entry_pc,
     .stack_depth = initial_stack_size,
     .max_stack_depth = initial_stack_size,
+    .call_depth = call_depth,
   };
 
   bool returned = false;
-  while (ctx.pc < ctx.pc_end) {
+  while (ctx.pc < ctx.prog_end) {
     uint8_t op = ctx.fetch_byte();
     if (op == WickedPostfixOp_Ret) {
       returned = true;
@@ -361,6 +469,8 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, si
     WickedEvalStatus_t status = WickedEvalStatus_Ok;
 
     switch (op) {
+      case WickedPostfixOp_Call:      status = validate::Call(ctx); break;
+      case WickedPostfixOp_Piecewise: status = validate::Piecewise(ctx); break;
       case WickedPostfixOp_Push:      status = validate::Push(ctx); break;
       case WickedPostfixOp_Dup:       status = validate::Dup(ctx); break;
       case WickedPostfixOp_Over:      status = validate::Over(ctx); break;
@@ -426,15 +536,39 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, si
     return WickedEvalStatus_IllegalOperation;
   }
 
-  if (ctx.max_stack_depth > UINT16_MAX) {
+  if (out_max_depth) {
+    *out_max_depth = ctx.max_stack_depth;
+  }
+  if (out_final_depth) {
+    *out_final_depth = ctx.stack_depth;
+  }
+  return WickedEvalStatus_Ok;
+}
+
+}  // namespace
+
+extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, size_t buffer_size, uint16_t initial_stack_size, uint16_t* minimum_stack_capacity, uint16_t* final_stack_size) {
+  if (!prog_data || buffer_size == 0) {
+    return WickedEvalStatus_IllegalOperation;
+  }
+
+  int32_t max_depth = 0;
+  int32_t final_depth = 0;
+  WickedEvalStatus_t status = ValidateInternal(
+      prog_data, prog_data + buffer_size, prog_data, initial_stack_size, 0, &max_depth, &final_depth);
+  if (status != WickedEvalStatus_Ok) {
+    return status;
+  }
+
+  if (max_depth > UINT16_MAX) {
     return WickedEvalStatus_StackOverflow;
   }
 
   if (minimum_stack_capacity) {
-    *minimum_stack_capacity = static_cast<uint16_t>(ctx.max_stack_depth);
+    *minimum_stack_capacity = static_cast<uint16_t>(max_depth);
   }
   if (final_stack_size) {
-    *final_stack_size = static_cast<uint16_t>(ctx.stack_depth);
+    *final_stack_size = static_cast<uint16_t>(final_depth);
   }
   return WickedEvalStatus_Ok;
 }
@@ -445,9 +579,17 @@ struct EvalContext {
   const uint8_t* pc;
   float* sp;
   float* const base;
+  const uint8_t* const root_prog;
 
   WICKED_ALWAYS_INLINE uint8_t fetch_byte() {
     return *pc++;
+  }
+
+  WICKED_ALWAYS_INLINE uint16_t fetch_uint16() {
+    uint16_t u;
+    std::memcpy(&u, pc, sizeof(uint16_t));
+    pc += sizeof(uint16_t);
+    return u;
   }
 
   WICKED_ALWAYS_INLINE float fetch_float() {
@@ -971,20 +1113,69 @@ WICKED_ALWAYS_INLINE void Poly(EvalContext& ctx) {
   }
 }
 
+WICKED_ALWAYS_INLINE void Call(EvalContext& ctx) {
+  uint16_t target_offset = ctx.fetch_uint16();
+  WickedPostfixEvaluateInternal(ctx.root_prog, ctx.root_prog + target_offset, ctx.sp, ctx.base);
+}
+
+WICKED_ALWAYS_INLINE void Piecewise(EvalContext& ctx) {
+  float x = ctx.peek();
+  uint8_t count_byte = ctx.fetch_byte();
+  bool is_relative = (count_byte & 0x80) != 0;
+  uint8_t num_knots = count_byte & 0x7F;
+
+  uint8_t low = 0;
+  uint8_t high = num_knots;
+  while (low < high) {
+    uint8_t mid = low + (high - low) / 2;
+    float k;
+    std::memcpy(&k, ctx.pc + mid * sizeof(float), sizeof(float));
+    if (x >= k) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  uint8_t branch_idx = low;
+
+  if (is_relative) {
+    float x_ref;
+    if (branch_idx == 0) {
+      std::memcpy(&x_ref, ctx.pc, sizeof(float));
+    } else {
+      std::memcpy(&x_ref, ctx.pc + (branch_idx - 1) * sizeof(float), sizeof(float));
+    }
+    ctx.peek() = x - x_ref;
+  }
+
+  const uint8_t* offsets_ptr = ctx.pc + num_knots * sizeof(float);
+  uint16_t target_offset;
+  std::memcpy(&target_offset, offsets_ptr + branch_idx * sizeof(uint16_t), sizeof(uint16_t));
+
+  ctx.pc = offsets_ptr + (num_knots + 1) * sizeof(uint16_t);
+
+  WickedPostfixEvaluateInternal(ctx.root_prog, ctx.root_prog + target_offset, ctx.sp, ctx.base);
+}
+
 }  // namespace ops
 }  // namespace
 
-extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t initial_stack_size, float* stack_data) {
+extern "C" void WickedPostfixEvaluateInternal(const uint8_t* root_prog, const uint8_t* entry_pc, float*& sp, float* base) {
   EvalContext ctx{
-    .pc = prog_data,
-    .sp = stack_data + initial_stack_size,
-    .base = stack_data,
+    .pc = entry_pc,
+    .sp = sp,
+    .base = base,
+    .root_prog = root_prog,
   };
 
   while (true) {
     const uint8_t op = ctx.fetch_byte();
     switch (op) {
-      case WickedPostfixOp_Ret:       return;
+      case WickedPostfixOp_Ret:
+        sp = ctx.sp;
+        return;
+      case WickedPostfixOp_Call:      ops::Call(ctx); break;
+      case WickedPostfixOp_Piecewise: ops::Piecewise(ctx); break;
       case WickedPostfixOp_Push:      ops::Push(ctx); break;
       case WickedPostfixOp_Dup:       ops::Dup(ctx); break;
       case WickedPostfixOp_Over:      ops::Over(ctx); break;
@@ -1042,3 +1233,5 @@ extern "C" void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t initial
     }
   }
 }
+
+

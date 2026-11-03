@@ -2059,6 +2059,9 @@ TEST(EvalTest, OpToString) {
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Poly), "Poly");
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_CosSin), "CosSin");
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_PanTilt), "PanTilt");
+  EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Call), "Call");
+  EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Piecewise), "Piecewise");
+  EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Ret), "Ret");
 }
 
 TEST(EvalTest, VectorEncoding) {
@@ -2168,6 +2171,236 @@ TEST(StreamWriterTest, CapacityEdgeCases) {
   EXPECT_EQ(empty_stream.bytes_written(), 1);
   EXPECT_EQ(empty_stream.prog_size(), 1);
   EXPECT_EQ(ret_only[0], WickedPostfixOp_Ret);
+}
+
+TEST(EvalTest, CallBasic) {
+  WickedPostfixWriter writer;
+  WickedPostfixWriter sq;
+  sq.Dup();
+  sq.Mul();
+  auto sq_handle = writer.DefineSubroutine(sq);
+
+  writer.Push(5.0f);
+  writer.Call(sq_handle);
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {});
+  ASSERT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  ASSERT_EQ(eval.stack().size(), 1);
+  EXPECT_EQ(eval.stack()[0], 25.0f);
+}
+
+TEST(EvalTest, CallMultiple) {
+  WickedPostfixWriter writer;
+  WickedPostfixWriter sq;
+  sq.Dup();
+  sq.Mul();
+  auto sq_handle = writer.DefineSubroutine(sq);
+
+  // sqrt(3^2 + 4^2) = 5
+  writer.Push(3.0f);
+  writer.Call(sq_handle);
+  writer.Push(4.0f);
+  writer.Call(sq_handle);
+  writer.Add();
+  writer.Sqrt();
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {});
+  ASSERT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  ASSERT_EQ(eval.stack().size(), 1);
+  EXPECT_EQ(eval.stack()[0], 5.0f);
+}
+
+TEST(EvalTest, CallNested) {
+  WickedPostfixWriter writer;
+  WickedPostfixWriter add_one;
+  add_one.Push(1.0f);
+  add_one.Add();
+  auto add_one_handle = writer.DefineSubroutine(add_one);
+
+  WickedPostfixWriter add_two;
+  add_two.Call(add_one_handle);
+  add_two.Call(add_one_handle);
+  auto add_two_handle = writer.DefineSubroutine(add_two);
+
+  writer.Push(10.0f);
+  writer.Call(add_two_handle);
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {});
+  ASSERT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  ASSERT_EQ(eval.stack().size(), 1);
+  EXPECT_EQ(eval.stack()[0], 12.0f);
+}
+
+TEST(EvalTest, CallRecursionLimit) {
+  WickedPostfixWriter writer;
+  writer.Call(0); // Self-referential recursion at offset 0
+  writer.Ret();
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {});
+  ASSERT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_StackOverflow);
+}
+
+TEST(EvalTest, CallOutOfBounds) {
+  uint8_t buf[] = {
+    WickedPostfixOp_Call, 0x00, 0x01, // Target offset 256 > buffer size
+    WickedPostfixOp_Ret
+  };
+  TestEval eval(4, {});
+  ASSERT_TRUE(WickedPostfixRead(buf, sizeof(buf), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_IllegalOperation);
+}
+
+TEST(EvalTest, PiecewiseRelative) {
+  WickedPostfixWriter writer_template;
+  WickedPostfixWriter branch0, branch1, branch2;
+  branch0.Push(1.0f);
+  branch0.Nip(); // replace relative x with 1.0f
+
+  branch1.Dup();
+  branch1.Mul(); // relative x^2
+
+  branch2.Push(100.0f);
+  branch2.Nip(); // replace relative x with 100.0f
+
+  auto test_val = [&](float in_x) -> float {
+    WickedPostfixWriter w;
+    auto s0 = w.DefineSubroutine(branch0);
+    auto s1 = w.DefineSubroutine(branch1);
+    auto s2 = w.DefineSubroutine(branch2);
+    w.Push(in_x);
+    w.PiecewiseRelative({0.0f, 10.0f}, {s0, s1, s2});
+    auto buf = w.Write();
+
+    TestEval eval(4, {});
+    EXPECT_TRUE(WickedPostfixRead(buf.data(), buf.size(), &eval));
+    EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+    WickedPostfixEvaluate(&eval);
+    return eval.stack()[0];
+  };
+
+  EXPECT_EQ(test_val(-5.0f), 1.0f);
+  EXPECT_EQ(test_val(0.0f), 0.0f);
+  EXPECT_EQ(test_val(3.0f), 9.0f);
+  EXPECT_EQ(test_val(10.0f), 100.0f);
+  EXPECT_EQ(test_val(15.0f), 100.0f);
+}
+
+TEST(EvalTest, PiecewiseAbsolute) {
+  WickedPostfixWriter neg_branch;
+  neg_branch.Neg();
+
+  WickedPostfixWriter id_branch; // leaves x as-is
+
+  auto test_abs = [&](float in_x) -> float {
+    WickedPostfixWriter w;
+    auto s_neg = w.DefineSubroutine(neg_branch);
+    auto s_id = w.DefineSubroutine(id_branch);
+    w.Push(in_x);
+    w.Piecewise({0.0f}, {s_neg, s_id});
+    auto buf = w.Write();
+
+    TestEval eval(4, {});
+    EXPECT_TRUE(WickedPostfixRead(buf.data(), buf.size(), &eval));
+    EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+    WickedPostfixEvaluate(&eval);
+    return eval.stack()[0];
+  };
+
+  EXPECT_EQ(test_abs(-7.5f), 7.5f);
+  EXPECT_EQ(test_abs(0.0f), 0.0f);
+  EXPECT_EQ(test_abs(7.5f), 7.5f);
+}
+
+TEST(EvalTest, PiecewiseSharedBranch) {
+  WickedPostfixWriter w;
+  WickedPostfixWriter zero_branch;
+  zero_branch.Push(0.0f);
+  zero_branch.Nip();
+  auto zero_sub = w.DefineSubroutine(zero_branch);
+
+  WickedPostfixWriter linear_branch; // leaves relative x as-is
+  auto linear_sub = w.DefineSubroutine(linear_branch);
+
+  w.Push(5.0f); // x = 5.0f -> middle branch -> relative x is 5 - (-10) = 15
+  w.PiecewiseRelative({-10.0f, 10.0f}, {zero_sub, linear_sub, zero_sub});
+  auto buf = w.Write();
+
+  TestEval eval(4, {});
+  ASSERT_TRUE(WickedPostfixRead(buf.data(), buf.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  ASSERT_EQ(eval.stack().size(), 1);
+  EXPECT_EQ(eval.stack()[0], 15.0f);
+}
+
+TEST(EvalTest, PiecewiseValidationErrors) {
+  // Stack underflow (empty stack)
+  {
+    WickedPostfixWriter w;
+    WickedPostfixWriter b0, b1;
+    auto s0 = w.DefineSubroutine(b0);
+    auto s1 = w.DefineSubroutine(b1);
+    w.Piecewise({0.0f}, {s0, s1});
+    auto buf = w.Write();
+
+    TestEval eval(4, {});
+    ASSERT_TRUE(WickedPostfixRead(buf.data(), buf.size(), &eval));
+    EXPECT_EQ(WickedPostfixValidate(&eval, 0), WickedEvalStatus_StackUnderflow);
+  }
+
+  // Mismatched branch stack sizes
+  {
+    WickedPostfixWriter w;
+    WickedPostfixWriter b0; // leaves stack delta 0
+    WickedPostfixWriter b1;
+    b1.Push(1.0f); // pushes 1, stack delta +1
+    auto s0 = w.DefineSubroutine(b0);
+    auto s1 = w.DefineSubroutine(b1);
+    w.Push(5.0f);
+    w.Piecewise({0.0f}, {s0, s1});
+    auto buf = w.Write();
+
+    TestEval eval(4, {});
+    ASSERT_TRUE(WickedPostfixRead(buf.data(), buf.size(), &eval));
+    EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_UnexpectedStackSize);
+  }
+
+  // Non-monotonic knots
+  {
+    WickedPostfixWriter w;
+    w.Push(1.0f);
+    uint16_t offsets[3] = {0, 0, 0};
+    float bad_knots[2] = {10.0f, 0.0f}; // not strictly increasing
+    w.Piecewise(false, bad_knots, offsets);
+    auto buf = w.Write();
+
+    TestEval eval(4, {});
+    ASSERT_TRUE(WickedPostfixRead(buf.data(), buf.size(), &eval));
+    EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_IllegalOperation);
+  }
+
+  // Zero knots
+  {
+    uint8_t buf[] = {
+      WickedPostfixOp_Push, 0, 0, 0, 0,
+      WickedPostfixOp_Piecewise, 0, // 0 knots
+      WickedPostfixOp_Ret
+    };
+    TestEval eval(4, {});
+    ASSERT_TRUE(WickedPostfixRead(buf, sizeof(buf), &eval));
+    EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_IllegalOperation);
+  }
 }
 
 }  // namespace

@@ -30,6 +30,13 @@ class WickedPostfixEmitter {
     for (uint8_t b : bytes) derived().EmitByte(b);
   }
 
+  // Emits a 16-bit unsigned integer into the bytecode stream.
+  void EmitUint16(uint16_t u) {
+    uint8_t bytes[sizeof(uint16_t)];
+    std::memcpy(bytes, &u, sizeof(uint16_t));
+    for (uint8_t b : bytes) derived().EmitByte(b);
+  }
+
   // Pushes a single float literal onto the stack ( -> value).
   void Push(float value) {
     EmitOp(WickedPostfixOp_Push);
@@ -351,6 +358,45 @@ class WickedPostfixEmitter {
   void PolyMat(uint8_t rows, uint8_t cols, std::span<const float> coeffs) { Poly(rows, cols, coeffs); }
   void PolyMat(uint8_t rows, uint8_t cols, std::initializer_list<float> coeffs) { Poly(rows, cols, coeffs); }
 
+  // Unconditional subroutine call to target byte offset.
+  void Call(uint16_t target_offset) {
+    EmitOp(WickedPostfixOp_Call);
+    EmitUint16(target_offset);
+  }
+
+  // Evaluates a piecewise function over scalar x with explicit branch offsets.
+  void Piecewise(bool relative, std::span<const float> knots, std::span<const uint16_t> offsets) {
+    assert(knots.size() >= 1 && knots.size() <= 127);
+    assert(offsets.size() == knots.size() + 1);
+    EmitOp(WickedPostfixOp_Piecewise);
+    uint8_t count_byte = static_cast<uint8_t>(knots.size() | (relative ? 0x80 : 0x00));
+    derived().EmitByte(count_byte);
+    for (float k : knots) {
+      EmitFloat(k);
+    }
+    for (uint16_t off : offsets) {
+      EmitUint16(off);
+    }
+  }
+
+  void Piecewise(std::span<const float> knots, std::span<const uint16_t> offsets) {
+    Piecewise(false, knots, offsets);
+  }
+
+  void Piecewise(std::initializer_list<float> knots, std::initializer_list<uint16_t> offsets) {
+    Piecewise(false, std::span<const float>(knots.begin(), knots.size()),
+              std::span<const uint16_t>(offsets.begin(), offsets.size()));
+  }
+
+  void PiecewiseRelative(std::span<const float> knots, std::span<const uint16_t> offsets) {
+    Piecewise(true, knots, offsets);
+  }
+
+  void PiecewiseRelative(std::initializer_list<float> knots, std::initializer_list<uint16_t> offsets) {
+    Piecewise(true, std::span<const float>(knots.begin(), knots.size()),
+              std::span<const uint16_t>(offsets.begin(), offsets.size()));
+  }
+
   // Terminates postfix evaluation (returns from program).
   void Ret() { EmitOp(WickedPostfixOp_Ret); }
 };
@@ -424,29 +470,179 @@ class WickedPostfixStreamWriter : public WickedPostfixEmitter<WickedPostfixStrea
   bool overflow_ = false;
 };
 
+// Handle referencing a defined subroutine in WickedPostfixWriter.
+struct SubroutineHandle {
+  size_t index = 0;
+};
+
 // Builds serialized postfix bytecode programs dynamically using std::vector.
 class WickedPostfixWriter : public WickedPostfixEmitter<WickedPostfixWriter> {
  public:
+  // Defines a subroutine that will be appended after the main program upon serialization.
+  // Ensures the subroutine terminates with Ret.
+  SubroutineHandle DefineSubroutine(std::vector<uint8_t> bytecode) {
+    if (bytecode.empty() || bytecode.back() != static_cast<uint8_t>(WickedPostfixOp_Ret)) {
+      bytecode.push_back(static_cast<uint8_t>(WickedPostfixOp_Ret));
+    }
+    size_t idx = subroutines_.size();
+    subroutines_.push_back(std::move(bytecode));
+    return SubroutineHandle{idx};
+  }
+
+  SubroutineHandle DefineSubroutine(const WickedPostfixWriter& sub) {
+    size_t idx = subroutines_.size();
+    std::vector<uint8_t> prog = sub.prog_;
+    if (prog.empty() || prog.back() != static_cast<uint8_t>(WickedPostfixOp_Ret)) {
+      prog.push_back(static_cast<uint8_t>(WickedPostfixOp_Ret));
+    }
+    subroutines_.push_back(std::move(prog));
+
+    // Absorb sub's call_patches
+    for (const auto& cp : sub.call_patches_) {
+      call_patches_.push_back(CallPatch{
+        .in_subroutine_index = idx,
+        .patch_offset = cp.patch_offset,
+        .target_subroutine_index = cp.target_subroutine_index,
+      });
+    }
+
+    // Absorb sub's piecewise_patches
+    for (const auto& pp : sub.piecewise_patches_) {
+      piecewise_patches_.push_back(PiecewisePatch{
+        .in_subroutine_index = idx,
+        .patch_offset = pp.patch_offset,
+        .subroutine_indices = pp.subroutine_indices,
+      });
+    }
+
+    return SubroutineHandle{idx};
+  }
+
+  // Appends a subroutine to the writer immediately and returns its byte offset.
+  uint16_t AppendSubroutine(const WickedPostfixWriter& sub) {
+    uint16_t offset = static_cast<uint16_t>(prog_.size());
+    auto bytes = sub.Write();
+    prog_.insert(prog_.end(), bytes.begin(), bytes.end());
+    return offset;
+  }
+
+  // Invokes a defined subroutine via automatic backpatching.
+  void Call(SubroutineHandle sub) {
+    EmitOp(WickedPostfixOp_Call);
+    call_patches_.push_back(CallPatch{
+      .in_subroutine_index = static_cast<size_t>(-1),
+      .patch_offset = prog_.size(),
+      .target_subroutine_index = sub.index,
+    });
+    EmitUint16(0);  // placeholder
+  }
+
+  using WickedPostfixEmitter<WickedPostfixWriter>::Call;
+
+  // Emits Piecewise using defined subroutines and automatic backpatching.
+  void Piecewise(bool relative, std::span<const float> knots, std::span<const SubroutineHandle> branches) {
+    assert(knots.size() >= 1 && knots.size() <= 127);
+    assert(branches.size() == knots.size() + 1);
+    EmitOp(WickedPostfixOp_Piecewise);
+    uint8_t count_byte = static_cast<uint8_t>(knots.size() | (relative ? 0x80 : 0x00));
+    EmitByte(count_byte);
+    for (float k : knots) {
+      EmitFloat(k);
+    }
+    size_t patch_start = prog_.size();
+    std::vector<size_t> branch_indices;
+    branch_indices.reserve(branches.size());
+    for (const auto& h : branches) {
+      branch_indices.push_back(h.index);
+      EmitUint16(0);  // placeholder
+    }
+    piecewise_patches_.push_back(PiecewisePatch{
+      .in_subroutine_index = static_cast<size_t>(-1),
+      .patch_offset = patch_start,
+      .subroutine_indices = std::move(branch_indices),
+    });
+  }
+
+  void Piecewise(std::span<const float> knots, std::span<const SubroutineHandle> branches) {
+    Piecewise(false, knots, branches);
+  }
+
+  void Piecewise(std::initializer_list<float> knots, std::initializer_list<SubroutineHandle> branches) {
+    Piecewise(false, std::span<const float>(knots.begin(), knots.size()),
+              std::span<const SubroutineHandle>(branches.begin(), branches.size()));
+  }
+
+  void PiecewiseRelative(std::span<const float> knots, std::span<const SubroutineHandle> branches) {
+    Piecewise(true, knots, branches);
+  }
+
+  void PiecewiseRelative(std::initializer_list<float> knots, std::initializer_list<SubroutineHandle> branches) {
+    Piecewise(true, std::span<const float>(knots.begin(), knots.size()),
+              std::span<const SubroutineHandle>(branches.begin(), branches.size()));
+  }
+
+  using WickedPostfixEmitter<WickedPostfixWriter>::Piecewise;
+  using WickedPostfixEmitter<WickedPostfixWriter>::PiecewiseRelative;
+
   // Pointer to bytecode data buffer.
   uint8_t* prog_data() { return prog_.data(); }
   // Const pointer to bytecode data buffer.
   const uint8_t* prog_data() const { return prog_.data(); }
   // Bytecode size in bytes.
   uint16_t prog_size() const { return static_cast<uint16_t>(prog_.size()); }
-  // Total serialized size including trailing Ret if not already present.
+  // Total serialized size including trailing Ret and any defined subroutines.
   uint16_t data_size() const {
-    return static_cast<uint16_t>(prog_.size() + (ends_with_ret() ? 0 : 1));
+    size_t sz = prog_.size() + (ends_with_ret() ? 0 : 1);
+    for (const auto& sub : subroutines_) {
+      sz += sub.size();
+    }
+    return static_cast<uint16_t>(sz);
   }
 
-  // Serializes bytecode into the provided buffer, ensuring trailing Ret.
+  // Serializes bytecode into the provided buffer, ensuring trailing Ret and backpatching subroutines.
   bool Write(uint8_t* data, size_t size) const {
     if (size < data_size()) return false;
+    size_t cur = 0;
     if (!prog_.empty()) {
       std::memcpy(data, prog_.data(), prog_.size());
+      cur += prog_.size();
     }
     if (!ends_with_ret()) {
-      data[prog_.size()] = static_cast<uint8_t>(WickedPostfixOp_Ret);
+      data[cur++] = static_cast<uint8_t>(WickedPostfixOp_Ret);
     }
+
+    std::vector<uint16_t> sub_offsets;
+    sub_offsets.reserve(subroutines_.size());
+    for (const auto& sub : subroutines_) {
+      sub_offsets.push_back(static_cast<uint16_t>(cur));
+      if (!sub.empty()) {
+        std::memcpy(data + cur, sub.data(), sub.size());
+        cur += sub.size();
+      }
+    }
+
+    // Backpatch Call offsets
+    for (const auto& cp : call_patches_) {
+      assert(cp.target_subroutine_index < sub_offsets.size());
+      size_t base_pos = (cp.in_subroutine_index == static_cast<size_t>(-1))
+                            ? 0
+                            : sub_offsets[cp.in_subroutine_index];
+      uint16_t target = sub_offsets[cp.target_subroutine_index];
+      std::memcpy(data + base_pos + cp.patch_offset, &target, sizeof(uint16_t));
+    }
+
+    // Backpatch Piecewise branch offsets
+    for (const auto& pp : piecewise_patches_) {
+      size_t base_pos = (pp.in_subroutine_index == static_cast<size_t>(-1))
+                            ? 0
+                            : sub_offsets[pp.in_subroutine_index];
+      for (size_t b = 0; b < pp.subroutine_indices.size(); ++b) {
+        assert(pp.subroutine_indices[b] < sub_offsets.size());
+        uint16_t target = sub_offsets[pp.subroutine_indices[b]];
+        std::memcpy(data + base_pos + pp.patch_offset + b * sizeof(uint16_t), &target, sizeof(uint16_t));
+      }
+    }
+
     return true;
   }
 
@@ -457,8 +653,13 @@ class WickedPostfixWriter : public WickedPostfixEmitter<WickedPostfixWriter> {
     return buffer;
   }
 
-  // Clears the bytecode buffer.
-  void clear() { prog_.clear(); }
+  // Clears the bytecode buffer and pending subroutines.
+  void clear() {
+    prog_.clear();
+    subroutines_.clear();
+    call_patches_.clear();
+    piecewise_patches_.clear();
+  }
 
   // Emits a raw byte into the bytecode stream.
   void EmitByte(uint8_t b) { prog_.push_back(b); }
@@ -467,5 +668,20 @@ class WickedPostfixWriter : public WickedPostfixEmitter<WickedPostfixWriter> {
   bool ends_with_ret() const {
     return !prog_.empty() && prog_.back() == static_cast<uint8_t>(WickedPostfixOp_Ret);
   }
+
+  struct CallPatch {
+    size_t in_subroutine_index;
+    size_t patch_offset;
+    size_t target_subroutine_index;
+  };
+  struct PiecewisePatch {
+    size_t in_subroutine_index;
+    size_t patch_offset;
+    std::vector<size_t> subroutine_indices;
+  };
+
   std::vector<uint8_t> prog_;
+  std::vector<std::vector<uint8_t>> subroutines_;
+  std::vector<CallPatch> call_patches_;
+  std::vector<PiecewisePatch> piecewise_patches_;
 };

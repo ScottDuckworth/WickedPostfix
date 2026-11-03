@@ -456,12 +456,12 @@ def main():
     # Print section breakdown for STM32 Default
     if "stm32_default" in results:
         secs = results["stm32_default"]["sections"]
-        val_sz = sum(v for k, v in secs.items() if "WickedPostfixValidate" in k)
-        eval_sz = sum(v for k, v in secs.items() if "WickedPostfixEvaluate" in k)
+        val_sz = sum(v for k, v in secs.items() if "Validate" in k)
+        eval_sz = sum(v for k, v in secs.items() if "Evaluate" in k)
         str_sz = sum(v for k, v in secs.items() if "WickedPostfixOpToString" in k or "CSWTCH" in k or "str1.1" in k)
         print("\nSection Breakdown for STM32G4 Default (Thumb-2):")
-        print(f"  * WickedPostfixValidate:    ~{val_sz} B")
-        print(f"  * WickedPostfixEvaluate:    ~{eval_sz} B")
+        print(f"  * Bytecode Validation:      ~{val_sz} B")
+        print(f"  * Bytecode Evaluation:      ~{eval_sz} B")
         print(f"  * OpToString / Switch:      ~{str_sz} B")
 
     # Math helper functions in WickedMath.h

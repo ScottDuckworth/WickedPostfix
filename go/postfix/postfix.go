@@ -82,6 +82,8 @@ const (
 	Operation_ScaleVec   Operation = 50
 	Operation_MulMat     Operation = 51
 	Operation_Poly       Operation = 52
+	Operation_Call       Operation = 253
+	Operation_Piecewise  Operation = 254
 	Operation_Ret        Operation = 255
 )
 
@@ -204,6 +206,10 @@ func (op Operation) String() string {
 		return "MulMat"
 	case Operation_Poly:
 		return "Poly"
+	case Operation_Call:
+		return "Call"
+	case Operation_Piecewise:
+		return "Piecewise"
 	case Operation_Ret:
 		return "Ret"
 	default:
@@ -277,14 +283,144 @@ func Join(exprs ...*Expression) *Expression {
 	return result
 }
 
+// SubroutineHandle references a defined subroutine in a Builder.
+type SubroutineHandle struct {
+	index int
+}
+
+type callPatch struct {
+	inSubroutineIndex int
+	patchOffset       int
+	targetSubIndex    int
+}
+
+type piecewisePatch struct {
+	inSubroutineIndex int
+	patchOffset       int
+	targetSubIndices  []int
+}
+
 // Builder constructs an Expression by appending bytecode operations and immediate data.
 type Builder struct {
-	expr Expression
+	expr             Expression
+	subroutines      [][]uint8
+	callPatches      []callPatch
+	piecewisePatches []piecewisePatch
 }
 
 // MakeBuilder creates an empty postfix expression builder.
 func MakeBuilder() *Builder {
 	return &Builder{}
+}
+
+// DefineSubroutine defines a subroutine that will be appended after the main program upon Build().
+func (b *Builder) DefineSubroutine(fn func(sub *Builder)) SubroutineHandle {
+	sub := MakeBuilder()
+	fn(sub)
+	prog := slices.Clone(sub.expr.Prog)
+	if len(prog) == 0 || Operation(prog[len(prog)-1]) != Operation_Ret {
+		prog = append(prog, uint8(Operation_Ret))
+	}
+	idx := len(b.subroutines)
+	b.subroutines = append(b.subroutines, prog)
+
+	for _, cp := range sub.callPatches {
+		b.callPatches = append(b.callPatches, callPatch{
+			inSubroutineIndex: idx,
+			patchOffset:       cp.patchOffset,
+			targetSubIndex:    cp.targetSubIndex,
+		})
+	}
+	for _, pp := range sub.piecewisePatches {
+		b.piecewisePatches = append(b.piecewisePatches, piecewisePatch{
+			inSubroutineIndex: idx,
+			patchOffset:       pp.patchOffset,
+			targetSubIndices:  pp.targetSubIndices,
+		})
+	}
+	return SubroutineHandle{index: idx}
+}
+
+// Call emits an unconditional subroutine call to a defined subroutine with automatic backpatching.
+func (b *Builder) Call(sub SubroutineHandle) *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Call))
+	b.callPatches = append(b.callPatches, callPatch{
+		inSubroutineIndex: -1,
+		patchOffset:       len(b.expr.Prog),
+		targetSubIndex:    sub.index,
+	})
+	b.expr.Prog = append(b.expr.Prog, 0, 0)
+	return b
+}
+
+// CallOffset emits an unconditional subroutine call to an explicit target byte offset.
+func (b *Builder) CallOffset(targetOffset uint16) *Builder {
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Call))
+	b.expr.Prog = binary.LittleEndian.AppendUint16(b.expr.Prog, targetOffset)
+	return b
+}
+
+// Piecewise emits an absolute Piecewise operation (Option C, x remains on stack).
+func (b *Builder) Piecewise(knots []float32, branches []SubroutineHandle) *Builder {
+	return b.emitPiecewise(false, knots, branches)
+}
+
+// PiecewiseRelative emits a relative Piecewise operation (Option B, x replaced with x - x_ref).
+func (b *Builder) PiecewiseRelative(knots []float32, branches []SubroutineHandle) *Builder {
+	return b.emitPiecewise(true, knots, branches)
+}
+
+func (b *Builder) emitPiecewise(relative bool, knots []float32, branches []SubroutineHandle) *Builder {
+	if len(knots) < 1 || len(knots) > 127 {
+		panic(fmt.Sprintf("Piecewise knots count (%d) must be in range [1, 127]", len(knots)))
+	}
+	if len(branches) != len(knots)+1 {
+		panic(fmt.Sprintf("Piecewise branches count (%d) must equal knots + 1 (%d)", len(branches), len(knots)+1))
+	}
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Piecewise))
+	countByte := uint8(len(knots))
+	if relative {
+		countByte |= 0x80
+	}
+	b.expr.Prog = append(b.expr.Prog, countByte)
+	for _, k := range knots {
+		b.expr.Prog = binary.LittleEndian.AppendUint32(b.expr.Prog, math.Float32bits(k))
+	}
+	patchStart := len(b.expr.Prog)
+	var branchIndices []int
+	for _, h := range branches {
+		branchIndices = append(branchIndices, h.index)
+		b.expr.Prog = append(b.expr.Prog, 0, 0)
+	}
+	b.piecewisePatches = append(b.piecewisePatches, piecewisePatch{
+		inSubroutineIndex: -1,
+		patchOffset:       patchStart,
+		targetSubIndices:  branchIndices,
+	})
+	return b
+}
+
+// PiecewiseOffsets emits a Piecewise operation with explicit branch offsets.
+func (b *Builder) PiecewiseOffsets(relative bool, knots []float32, offsets []uint16) *Builder {
+	if len(knots) < 1 || len(knots) > 127 {
+		panic(fmt.Sprintf("Piecewise knots count (%d) must be in range [1, 127]", len(knots)))
+	}
+	if len(offsets) != len(knots)+1 {
+		panic(fmt.Sprintf("Piecewise offsets count (%d) must equal knots + 1 (%d)", len(offsets), len(knots)+1))
+	}
+	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Piecewise))
+	countByte := uint8(len(knots))
+	if relative {
+		countByte |= 0x80
+	}
+	b.expr.Prog = append(b.expr.Prog, countByte)
+	for _, k := range knots {
+		b.expr.Prog = binary.LittleEndian.AppendUint32(b.expr.Prog, math.Float32bits(k))
+	}
+	for _, off := range offsets {
+		b.expr.Prog = binary.LittleEndian.AppendUint16(b.expr.Prog, off)
+	}
+	return b
 }
 
 // Ret appends an Operation_Ret instruction (end of program).
@@ -293,11 +429,38 @@ func (b *Builder) Ret() *Builder {
 	return b
 }
 
-// Build returns the completed postfix Expression constructed by this builder, ensuring trailing Ret.
+// Build returns the completed postfix Expression constructed by this builder, ensuring trailing Ret and backpatching subroutines.
 func (b *Builder) Build() *Expression {
 	if len(b.expr.Prog) == 0 || Operation(b.expr.Prog[len(b.expr.Prog)-1]) != Operation_Ret {
 		b.expr.Prog = append(b.expr.Prog, uint8(Operation_Ret))
 	}
+
+	subOffsets := make([]uint16, len(b.subroutines))
+	for i, sub := range b.subroutines {
+		subOffsets[i] = uint16(len(b.expr.Prog))
+		b.expr.Prog = append(b.expr.Prog, sub...)
+	}
+
+	for _, cp := range b.callPatches {
+		basePos := 0
+		if cp.inSubroutineIndex >= 0 {
+			basePos = int(subOffsets[cp.inSubroutineIndex])
+		}
+		target := subOffsets[cp.targetSubIndex]
+		binary.LittleEndian.PutUint16(b.expr.Prog[basePos+cp.patchOffset:], target)
+	}
+
+	for _, pp := range b.piecewisePatches {
+		basePos := 0
+		if pp.inSubroutineIndex >= 0 {
+			basePos = int(subOffsets[pp.inSubroutineIndex])
+		}
+		for i, subIdx := range pp.targetSubIndices {
+			target := subOffsets[subIdx]
+			binary.LittleEndian.PutUint16(b.expr.Prog[basePos+pp.patchOffset+i*2:], target)
+		}
+	}
+
 	return &b.expr
 }
 
@@ -759,10 +922,16 @@ func (b *Builder) PolyMat(rows, cols int, coeffs ...float64) *Builder {
 	return b.Poly(rows, cols, coeffs...)
 }
 
+const maxCallDepth = 4
+
 // Validate performs static analysis of the bytecode against an initial stack length,
 // returning the peak stack capacity needed, the final stack length, the opcode trace, or an error.
 func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLen int, ops []Operation, err error) {
-	pc := 0
+	return expr.validateInternal(0, initialStackLen, 0)
+}
+
+func (expr *Expression) validateInternal(entryPC int, initialStackLen int, callDepth int) (minCapacity, finalStackLen int, ops []Operation, err error) {
+	pc := entryPC
 	stackLen := initialStackLen
 	maxStackLen := initialStackLen
 
@@ -789,6 +958,78 @@ func (expr *Expression) Validate(initialStackLen int) (minCapacity, finalStackLe
 			break
 		}
 		switch op {
+		case Operation_Call:
+			if avail() < 2 {
+				return 0, 0, nil, ErrIllegalOperation
+			}
+			targetOffset := int(binary.LittleEndian.Uint16(expr.Prog[pc:]))
+			pc += 2
+			if targetOffset >= len(expr.Prog) {
+				return 0, 0, nil, ErrIllegalOperation
+			}
+			if callDepth >= maxCallDepth {
+				return 0, 0, nil, ErrStackOverflow
+			}
+			subMax, subFinal, subOps, err := expr.validateInternal(targetOffset, stackLen, callDepth+1)
+			if err != nil {
+				return 0, 0, nil, err
+			}
+			ops = append(ops, subOps...)
+			updateMax(subMax)
+			stackLen = subFinal
+			updateMax(stackLen)
+		case Operation_Piecewise:
+			if stackLen < 1 {
+				return 0, 0, nil, ErrStackUnderflow
+			}
+			if avail() < 1 {
+				return 0, 0, nil, ErrIllegalOperation
+			}
+			countByte := fetchByte()
+			numKnots := int(countByte & 0x7F)
+			if numKnots == 0 {
+				return 0, 0, nil, ErrIllegalOperation
+			}
+			reqBytes := numKnots*4 + (numKnots+1)*2
+			if avail() < reqBytes {
+				return 0, 0, nil, ErrIllegalOperation
+			}
+			prevK := float32(math.Inf(-1))
+			for i := 0; i < numKnots; i++ {
+				bits := binary.LittleEndian.Uint32(expr.Prog[pc:])
+				pc += 4
+				k := math.Float32frombits(bits)
+				if math.IsNaN(float64(k)) || (i > 0 && k <= prevK) {
+					return 0, 0, nil, ErrIllegalOperation
+				}
+				prevK = k
+			}
+			branchOffsets := make([]int, numKnots+1)
+			for i := 0; i <= numKnots; i++ {
+				branchOffsets[i] = int(binary.LittleEndian.Uint16(expr.Prog[pc:]))
+				pc += 2
+				if branchOffsets[i] >= len(expr.Prog) {
+					return 0, 0, nil, ErrIllegalOperation
+				}
+			}
+			if callDepth >= maxCallDepth {
+				return 0, 0, nil, ErrStackOverflow
+			}
+			expectedFinal := 0
+			for i := 0; i <= numKnots; i++ {
+				bMax, bFinal, _, err := expr.validateInternal(branchOffsets[i], stackLen, callDepth+1)
+				if err != nil {
+					return 0, 0, nil, err
+				}
+				if i == 0 {
+					expectedFinal = bFinal
+				} else if bFinal != expectedFinal {
+					return 0, 0, nil, ErrUnexpectedStackSize
+				}
+				updateMax(bMax)
+			}
+			stackLen = expectedFinal
+			updateMax(stackLen)
 		case Operation_Undefined:
 			return 0, 0, nil, ErrUndefinedOperation
 		case Operation_Push:
@@ -1072,7 +1313,11 @@ func ipow(base float64, exp int) float64 {
 
 // Evaluate executes the bytecode on the provided stack without runtime bounds checking.
 func (expr *Expression) Evaluate(stack []float64) []float64 {
-	pc := 0
+	return expr.evaluateInternal(0, stack)
+}
+
+func (expr *Expression) evaluateInternal(startPC int, stack []float64) []float64 {
+	pc := startPC
 
 	pop := func() float64 {
 		i := len(stack) - 1
@@ -1103,6 +1348,47 @@ func (expr *Expression) Evaluate(stack []float64) []float64 {
 			return stack
 		}
 		switch op {
+		case Operation_Call:
+			targetOffset := int(binary.LittleEndian.Uint16(expr.Prog[pc:]))
+			pc += 2
+			stack = expr.evaluateInternal(targetOffset, stack)
+		case Operation_Piecewise:
+			x := stack[len(stack)-1]
+			countByte := fetchByte()
+			isRelative := (countByte & 0x80) != 0
+			numKnots := int(countByte & 0x7F)
+
+			low := 0
+			high := numKnots
+			for low < high {
+				mid := low + (high-low)/2
+				bits := binary.LittleEndian.Uint32(expr.Prog[pc+mid*4:])
+				k := float64(math.Float32frombits(bits))
+				if x >= k {
+					low = mid + 1
+				} else {
+					high = mid
+				}
+			}
+			branchIdx := low
+
+			if isRelative {
+				var xRef float64
+				if branchIdx == 0 {
+					bits := binary.LittleEndian.Uint32(expr.Prog[pc:])
+					xRef = float64(math.Float32frombits(bits))
+				} else {
+					bits := binary.LittleEndian.Uint32(expr.Prog[pc+(branchIdx-1)*4:])
+					xRef = float64(math.Float32frombits(bits))
+				}
+				stack[len(stack)-1] = x - xRef
+			}
+
+			offsetsPtr := pc + numKnots*4
+			targetOffset := int(binary.LittleEndian.Uint16(expr.Prog[offsetsPtr+branchIdx*2:]))
+			pc = offsetsPtr + (numKnots+1)*2
+
+			stack = expr.evaluateInternal(targetOffset, stack)
 		case Operation_Push:
 			stack = append(stack, fetchFloat())
 		case Operation_Dup:
