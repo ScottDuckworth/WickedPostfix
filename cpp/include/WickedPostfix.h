@@ -77,7 +77,10 @@ const char* WickedPostfixOpToString(WickedPostfixOp_t op);
 // The program must terminate with WickedPostfixOp_Ret before the buffer boundary is exceeded.
 WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, size_t buffer_size, uint16_t initial_stack_size, uint16_t* minimum_stack_capacity, uint16_t* final_stack_size);
 
-void WickedPostfixEvaluateInternal(const uint8_t* root_prog, const uint8_t* entry_pc, float*& sp, float* base);
+// Evaluates bytecode starting at entry_pc within root_prog, using initial stack pointer sp
+// and stack boundary base. Execution continues in-place without bounds checking until
+// WickedPostfixOp_Ret is reached. Returns the updated stack pointer upon return.
+float* WickedPostfixEvaluateInternal(const uint8_t* root_prog, const uint8_t* entry_pc, float* sp, float* base);
 
 // Evaluates bytecode on stack_data in-place without bounds checking until WickedPostfixOp_Ret is reached.
 static inline void WickedPostfixEvaluate(const uint8_t* prog_data, uint16_t initial_stack_size, float* stack_data) {

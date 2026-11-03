@@ -2240,6 +2240,27 @@ TEST(EvalTest, CallNested) {
   EXPECT_EQ(eval.stack()[0], 12.0f);
 }
 
+TEST(EvalTest, CallStackDelta) {
+  WickedPostfixWriter writer;
+  WickedPostfixWriter sub;
+  sub.Dup();
+  sub.Push(5.0f);
+  sub.Add();
+  auto sub_handle = writer.DefineSubroutine(sub);
+
+  writer.Push(10.0f);
+  writer.Call(sub_handle);
+  writer.Mul();
+  auto buffer = writer.Write();
+
+  TestEval eval(4, {});
+  ASSERT_TRUE(WickedPostfixRead(buffer.data(), buffer.size(), &eval));
+  EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_Ok);
+  WickedPostfixEvaluate(&eval);
+  ASSERT_EQ(eval.stack().size(), 1);
+  EXPECT_EQ(eval.stack()[0], 150.0f);
+}
+
 TEST(EvalTest, CallRecursionLimit) {
   WickedPostfixWriter writer;
   writer.Call(0); // Self-referential recursion at offset 0

@@ -1115,7 +1115,7 @@ WICKED_ALWAYS_INLINE void Poly(EvalContext& ctx) {
 
 WICKED_ALWAYS_INLINE void Call(EvalContext& ctx) {
   uint16_t target_offset = ctx.fetch_uint16();
-  WickedPostfixEvaluateInternal(ctx.root_prog, ctx.root_prog + target_offset, ctx.sp, ctx.base);
+  ctx.sp = WickedPostfixEvaluateInternal(ctx.root_prog, ctx.root_prog + target_offset, ctx.sp, ctx.base);
 }
 
 WICKED_ALWAYS_INLINE void Piecewise(EvalContext& ctx) {
@@ -1154,13 +1154,13 @@ WICKED_ALWAYS_INLINE void Piecewise(EvalContext& ctx) {
 
   ctx.pc = offsets_ptr + (num_knots + 1) * sizeof(uint16_t);
 
-  WickedPostfixEvaluateInternal(ctx.root_prog, ctx.root_prog + target_offset, ctx.sp, ctx.base);
+  ctx.sp = WickedPostfixEvaluateInternal(ctx.root_prog, ctx.root_prog + target_offset, ctx.sp, ctx.base);
 }
 
 }  // namespace ops
 }  // namespace
 
-extern "C" void WickedPostfixEvaluateInternal(const uint8_t* root_prog, const uint8_t* entry_pc, float*& sp, float* base) {
+extern "C" float* WickedPostfixEvaluateInternal(const uint8_t* root_prog, const uint8_t* entry_pc, float* sp, float* base) {
   EvalContext ctx{
     .pc = entry_pc,
     .sp = sp,
@@ -1172,8 +1172,7 @@ extern "C" void WickedPostfixEvaluateInternal(const uint8_t* root_prog, const ui
     const uint8_t op = ctx.fetch_byte();
     switch (op) {
       case WickedPostfixOp_Ret:
-        sp = ctx.sp;
-        return;
+        return ctx.sp;
       case WickedPostfixOp_Call:      ops::Call(ctx); break;
       case WickedPostfixOp_Piecewise: ops::Piecewise(ctx); break;
       case WickedPostfixOp_Push:      ops::Push(ctx); break;
