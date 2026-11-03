@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(
-  WickedWinchProtocol
+  WickedPostfix
   VERSION 0.1
   LANGUAGES CXX)
 
@@ -13,23 +13,21 @@ include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-add_library(WickedWinchProtocol
+add_library(WickedPostfix
   cpp/include/WickedEvalStatus.h
   cpp/include/WickedPostfix.h
   cpp/include/WickedPostfixWriter.h
-  cpp/include/WickedPath.h
   cpp/src/WickedEvalStatus.cc
   cpp/src/WickedPostfix.cc
-  cpp/src/WickedPath.cc
   cpp/include/WickedMath.h
   cpp/src/WickedMath.cc
 )
 
-target_include_directories(WickedWinchProtocol PUBLIC
+target_include_directories(WickedPostfix PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/cpp/include
 )
 
-if(NOT WICKEDWINCHPROTOCOL_TESTING_DISABLED)
+if(NOT WICKEDPOSTFIX_TESTING_DISABLED)
   include(FetchContent)
 
   FetchContent_Declare(
@@ -49,19 +47,9 @@ if(NOT WICKEDWINCHPROTOCOL_TESTING_DISABLED)
   target_link_libraries(WickedPostfix_test
     GTest::gmock
     GTest::gtest_main
-    WickedWinchProtocol
+    WickedPostfix
   )
   gtest_discover_tests(WickedPostfix_test)
-
-  add_executable(WickedPath_test
-    cpp/tests/WickedPath_test.cc
-  )
-  target_link_libraries(WickedPath_test
-    GTest::gmock
-    GTest::gtest_main
-    WickedWinchProtocol
-  )
-  gtest_discover_tests(WickedPath_test)
 endif()
 
 # Embedded Flash Memory Footprint Benchmark Target

@@ -286,7 +286,7 @@ def main():
     parser.add_argument("--xtensa-cxx", help="Path to xtensa-esp32s3-elf-g++")
     parser.add_argument("--xtensa-size", help="Path to xtensa-esp32s3-elf-size")
     parser.add_argument("--stm32cube-fw", help="Path to STM32Cube G4 firmware root")
-    parser.add_argument("--protocol-root", help="Path to WickedWinchProtocol repository root")
+    parser.add_argument("--protocol-root", help="Path to WickedPostfix repository root")
     parser.add_argument("--verbose", action="store_true", help="Print verbose linker outputs")
     args = parser.parse_args()
 

@@ -8,7 +8,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ScottDuckworth/WickedWinchProtocol/go/postfix"
+	"github.com/ScottDuckworth/WickedPostfix/go/postfix"
 )
 
 func TestPostfixHeaderSize(t *testing.T) {

@@ -1,8 +1,4 @@
-# WickedWinchProtocol
-
-WickedWinchProtocol defines the wire protocols and bytecode evaluation engine for the Wicked Winch robotic system.
-
-## WickedPostfix Bytecode
+# WickedPostfix
 
 `WickedPostfix` is a compact, deterministic, zero-allocation postfix bytecode evaluation machine designed for real-time trajectory generation, coordinate transformations, and polynomial evaluation on embedded motor controllers and central supervisors.
 

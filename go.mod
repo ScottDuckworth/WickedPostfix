@@ -1,3 +1,3 @@
-module github.com/ScottDuckworth/WickedWinchProtocol
+module github.com/ScottDuckworth/WickedPostfix
 
 go 1.22
