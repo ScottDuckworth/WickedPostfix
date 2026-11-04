@@ -2,6 +2,7 @@
 
 #include "WickedPostfix.h"
 
+#include <bit>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
@@ -23,18 +24,26 @@ class WickedPostfixEmitter {
     derived().EmitByte(static_cast<uint8_t>(op));
   }
 
-  // Emits a 32-bit float literal into the bytecode stream.
+  // Emits a 32-bit float literal into the bytecode stream (little-endian).
   void EmitFloat(float f) {
-    uint8_t bytes[sizeof(float)];
-    std::memcpy(bytes, &f, sizeof(float));
-    for (uint8_t b : bytes) derived().EmitByte(b);
+    if constexpr (std::endian::native == std::endian::little) {
+      uint8_t bytes[4];
+      std::memcpy(bytes, &f, 4);
+      for (uint8_t b : bytes) derived().EmitByte(b);
+    } else {
+      uint32_t bits;
+      std::memcpy(&bits, &f, 4);
+      derived().EmitByte(static_cast<uint8_t>(bits & 0xFF));
+      derived().EmitByte(static_cast<uint8_t>((bits >> 8) & 0xFF));
+      derived().EmitByte(static_cast<uint8_t>((bits >> 16) & 0xFF));
+      derived().EmitByte(static_cast<uint8_t>((bits >> 24) & 0xFF));
+    }
   }
 
-  // Emits a 16-bit unsigned integer into the bytecode stream.
+  // Emits a 16-bit unsigned integer into the bytecode stream (little-endian).
   void EmitUint16(uint16_t u) {
-    uint8_t bytes[sizeof(uint16_t)];
-    std::memcpy(bytes, &u, sizeof(uint16_t));
-    for (uint8_t b : bytes) derived().EmitByte(b);
+    derived().EmitByte(static_cast<uint8_t>(u & 0xFF));
+    derived().EmitByte(static_cast<uint8_t>((u >> 8) & 0xFF));
   }
 
   // Pushes a single float literal onto the stack ( -> value).
@@ -636,7 +645,8 @@ class WickedPostfixWriter : public WickedPostfixEmitter<WickedPostfixWriter> {
                             ? 0
                             : sub_offsets[cp.in_subroutine_index];
       uint16_t target = sub_offsets[cp.target_subroutine_index];
-      std::memcpy(data + base_pos + cp.patch_offset, &target, sizeof(uint16_t));
+      data[base_pos + cp.patch_offset] = static_cast<uint8_t>(target & 0xFF);
+      data[base_pos + cp.patch_offset + 1] = static_cast<uint8_t>((target >> 8) & 0xFF);
     }
 
     // Backpatch Piecewise branch offsets
@@ -647,7 +657,9 @@ class WickedPostfixWriter : public WickedPostfixEmitter<WickedPostfixWriter> {
       for (size_t b = 0; b < pp.subroutine_indices.size(); ++b) {
         assert(pp.subroutine_indices[b] < sub_offsets.size());
         uint16_t target = sub_offsets[pp.subroutine_indices[b]];
-        std::memcpy(data + base_pos + pp.patch_offset + b * sizeof(uint16_t), &target, sizeof(uint16_t));
+        size_t patch_pos = base_pos + pp.patch_offset + b * 2;
+        data[patch_pos] = static_cast<uint8_t>(target & 0xFF);
+        data[patch_pos + 1] = static_cast<uint8_t>((target >> 8) & 0xFF);
       }
     }
 

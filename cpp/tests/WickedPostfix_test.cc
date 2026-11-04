@@ -2425,4 +2425,87 @@ TEST(EvalTest, PiecewiseValidationErrors) {
   }
 }
 
+TEST(EndianTest, LittleEndianWireEncoding) {
+  WickedPostfixWriter writer;
+  writer.Push(1.0f);
+  writer.Push(-2.5f);
+  writer.Call(0x1234);
+  writer.PushVec({1.0f, -2.5f});
+  uint16_t offsets[2] = {0x0102, 0x0304};
+  float knots[1] = {1.0f};
+  writer.Piecewise(false, knots, offsets);
+
+  const uint8_t* p = writer.prog_data();
+
+  // Push 1.0f: Op_Push, 0x00, 0x00, 0x80, 0x3F
+  EXPECT_EQ(p[0], WickedPostfixOp_Push);
+  EXPECT_EQ(p[1], 0x00);
+  EXPECT_EQ(p[2], 0x00);
+  EXPECT_EQ(p[3], 0x80);
+  EXPECT_EQ(p[4], 0x3F);
+  p += 5;
+
+  // Push -2.5f: Op_Push, 0x00, 0x00, 0x20, 0xC0
+  EXPECT_EQ(p[0], WickedPostfixOp_Push);
+  EXPECT_EQ(p[1], 0x00);
+  EXPECT_EQ(p[2], 0x00);
+  EXPECT_EQ(p[3], 0x20);
+  EXPECT_EQ(p[4], 0xC0);
+  p += 5;
+
+  // Call 0x1234: Op_Call, 0x34, 0x12
+  EXPECT_EQ(p[0], WickedPostfixOp_Call);
+  EXPECT_EQ(p[1], 0x34);
+  EXPECT_EQ(p[2], 0x12);
+  p += 3;
+
+  // PushVec({1.0f, -2.5f}): Op_PushVec, size-1=1, then two floats
+  EXPECT_EQ(p[0], WickedPostfixOp_PushVec);
+  EXPECT_EQ(p[1], 1);
+  EXPECT_EQ(p[2], 0x00);
+  EXPECT_EQ(p[3], 0x00);
+  EXPECT_EQ(p[4], 0x80);
+  EXPECT_EQ(p[5], 0x3F);
+  EXPECT_EQ(p[6], 0x00);
+  EXPECT_EQ(p[7], 0x00);
+  EXPECT_EQ(p[8], 0x20);
+  EXPECT_EQ(p[9], 0xC0);
+  p += 10;
+
+  // Piecewise: Op_Piecewise, count=1, knot 1.0f, offsets 0x0102, 0x0304
+  EXPECT_EQ(p[0], WickedPostfixOp_Piecewise);
+  EXPECT_EQ(p[1], 1);
+  EXPECT_EQ(p[2], 0x00);
+  EXPECT_EQ(p[3], 0x00);
+  EXPECT_EQ(p[4], 0x80);
+  EXPECT_EQ(p[5], 0x3F);
+  EXPECT_EQ(p[6], 0x02);
+  EXPECT_EQ(p[7], 0x01);
+  EXPECT_EQ(p[8], 0x04);
+  EXPECT_EQ(p[9], 0x03);
+}
+
+TEST(EndianTest, RawLittleEndianEvaluation) {
+  // Construct raw bytecode by hand using strict little-endian bytes:
+  // Push 3.5f (0x40600000 -> 0x00, 0x00, 0x60, 0x40)
+  // Push 1.5f (0x3FC00000 -> 0x00, 0x00, 0xC0, 0x3F)
+  // Add
+  // Ret
+  const uint8_t raw_prog[] = {
+    static_cast<uint8_t>(WickedPostfixOp_Push), 0x00, 0x00, 0x60, 0x40,
+    static_cast<uint8_t>(WickedPostfixOp_Push), 0x00, 0x00, 0xC0, 0x3F,
+    static_cast<uint8_t>(WickedPostfixOp_Add),
+    static_cast<uint8_t>(WickedPostfixOp_Ret)
+  };
+
+  uint16_t min_cap = 0, final_sz = 0;
+  EXPECT_EQ(::WickedPostfixValidate(raw_prog, sizeof(raw_prog), 0, &min_cap, &final_sz), WickedEvalStatus_Ok);
+  EXPECT_EQ(final_sz, 1);
+
+  float stack[4] = {0.0f};
+  float* sp = ::WickedPostfixEvaluate(raw_prog, 0, stack);
+  EXPECT_EQ(sp - stack, 1);
+  EXPECT_FLOAT_EQ(stack[0], 5.0f);
+}
+
 }  // namespace

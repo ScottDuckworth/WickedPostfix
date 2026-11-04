@@ -113,15 +113,15 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,958 B** (~4.8 KB) | **11,380 B** (~11.1 KB) |
-| **ESP32-S3** (Xtensa LX7) | **6,302 B** (~6.2 KB) | **12,860 B** (~12.6 KB) |
+| **STM32G4** (Cortex-M4F) | **4,954 B** (~4.8 KB) | **11,376 B** (~11.1 KB) |
+| **ESP32-S3** (Xtensa LX7) | **6,290 B** (~6.1 KB) | **12,848 B** (~12.5 KB) |
 
 #### Fast Exp Math (`-DWICKED_USE_FAST_EXP_MATH`)
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,958 B** (~4.8 KB) | **10,452 B** (~10.2 KB) | **928 B (~0.9 KB)** |
-| **ESP32-S3** (Xtensa LX7) | **6,302 B** (~6.2 KB) | **11,964 B** (~11.7 KB) | **896 B (~0.9 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,954 B** (~4.8 KB) | **10,448 B** (~10.2 KB) | **928 B (~0.9 KB)** |
+| **ESP32-S3** (Xtensa LX7) | **6,290 B** (~6.1 KB) | **11,952 B** (~11.7 KB) | **896 B (~0.9 KB)** |
 
 #### Hardware CORDIC (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_STM32_CORDIC`)
 
@@ -129,7 +129,7 @@ Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **5,226 B** (~5.1 KB) | **5,724 B** (~5.6 KB) | **5,656 B (~5.5 KB)** |
+| **STM32G4** (Cortex-M4F) | **5,222 B** (~5.1 KB) | **5,720 B** (~5.6 KB) | **5,656 B (~5.5 KB)** |
 
 #### CMSIS-DSP (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_CMSIS_DSP`)
 
@@ -137,7 +137,7 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,958 B** (~4.8 KB) | **8,916 B** (~8.7 KB) | **2,464 B (~2.4 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,954 B** (~4.8 KB) | **8,912 B** (~8.7 KB) | **2,464 B (~2.4 KB)** |
 
 > [!NOTE]
 > **Firmware Considerations for CORDIC:**
@@ -147,7 +147,7 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 
 #### Section Breakdown (STM32G4, Thumb-2)
 * **Bytecode Validation (`ValidateInternal`, `ValidateSubroutine`, `WickedPostfixValidate`)**: ~1,024 B `.text`
-* **Bytecode Evaluation (`WickedPostfixEvaluate`, `WickedPostfixEvaluateInternal`)**: ~2,696 B `.text`
+* **Bytecode Evaluation (`WickedPostfixEvaluate`, `WickedPostfixEvaluateInternal`)**: ~2,692 B `.text`
 * **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~592 B `.rodata`
 
 #### Helper Math Functions (`WickedMath.h`, Thumb-2)

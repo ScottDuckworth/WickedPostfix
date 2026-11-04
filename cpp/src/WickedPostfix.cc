@@ -9,8 +9,8 @@
 #include <limits>
 #include <span>
 
-static_assert(std::endian::native == std::endian::little);
-static_assert(sizeof(float) == 4);
+static_assert(sizeof(float) == 4, "Host float must be 32-bit IEEE 754");
+static_assert(std::numeric_limits<float>::is_iec559, "Host float must adhere to IEC 60559 / IEEE 754");
 
 #ifndef WICKED_ALWAYS_INLINE
 #if defined(_MSC_VER)
@@ -90,6 +90,29 @@ extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
 
 namespace {
 
+static constexpr size_t WIRE_FLOAT_SIZE = 4;
+static constexpr size_t WIRE_UINT16_SIZE = 2;
+
+WICKED_ALWAYS_INLINE uint16_t read_wire_uint16(const uint8_t* p) {
+  return static_cast<uint16_t>(p[0]) | (static_cast<uint16_t>(p[1]) << 8);
+}
+
+WICKED_ALWAYS_INLINE float read_wire_float(const uint8_t* p) {
+  if constexpr (std::endian::native == std::endian::little) {
+    float f;
+    std::memcpy(&f, p, WIRE_FLOAT_SIZE);
+    return f;
+  } else {
+    uint32_t bits = static_cast<uint32_t>(p[0]) |
+                    (static_cast<uint32_t>(p[1]) << 8) |
+                    (static_cast<uint32_t>(p[2]) << 16) |
+                    (static_cast<uint32_t>(p[3]) << 24);
+    float f;
+    std::memcpy(&f, &bits, WIRE_FLOAT_SIZE);
+    return f;
+  }
+}
+
 struct ValidationContext {
   const uint8_t* const prog_data;
   const uint8_t* const prog_end;
@@ -113,16 +136,14 @@ struct ValidationContext {
   }
 
   WICKED_ALWAYS_INLINE uint16_t fetch_uint16() {
-    uint16_t u;
-    std::memcpy(&u, pc, sizeof(uint16_t));
-    pc += sizeof(uint16_t);
+    uint16_t u = read_wire_uint16(pc);
+    pc += WIRE_UINT16_SIZE;
     return u;
   }
 
   WICKED_ALWAYS_INLINE float fetch_float() {
-    float f;
-    std::memcpy(&f, pc, sizeof(float));
-    pc += sizeof(float);
+    float f = read_wire_float(pc);
+    pc += WIRE_FLOAT_SIZE;
     return f;
   }
 
@@ -163,8 +184,8 @@ static WickedEvalStatus_t ValidateSubroutine(
 namespace validate {
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Push(ValidationContext& ctx) {
-  if (!ctx.has_bytes(sizeof(float))) return WickedEvalStatus_IllegalOperation;
-  ctx.skip(sizeof(float));
+  if (!ctx.has_bytes(WIRE_FLOAT_SIZE)) return WickedEvalStatus_IllegalOperation;
+  ctx.skip(WIRE_FLOAT_SIZE);
   ctx.stack_depth += 1;
   ctx.update_max(ctx.stack_depth);
   return WickedEvalStatus_Ok;
@@ -173,7 +194,7 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t Push(ValidationContext& ctx) {
 WICKED_ALWAYS_INLINE WickedEvalStatus_t PushVec(ValidationContext& ctx) {
   if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
   uint8_t size = ctx.fetch_byte() + 1;
-  uint16_t byte_count = uint16_t(size) * sizeof(float);
+  uint16_t byte_count = uint16_t(size) * WIRE_FLOAT_SIZE;
   if (!ctx.has_bytes(byte_count)) return WickedEvalStatus_IllegalOperation;
   ctx.skip(byte_count);
   ctx.stack_depth += size;
@@ -355,7 +376,7 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t MulMat(ValidationContext& ctx) {
   if ((arg & 0x0C) != 0) return WickedEvalStatus_IllegalOperation;
   uint8_t rows = (arg & 0x03) + 1;
   uint8_t cols = ((arg >> 4) & 0x0F) + 1;
-  uint16_t byte_count = uint16_t(rows) * cols * sizeof(float);
+  uint16_t byte_count = uint16_t(rows) * cols * WIRE_FLOAT_SIZE;
   if (!ctx.has_bytes(byte_count)) return WickedEvalStatus_IllegalOperation;
   ctx.skip(byte_count);
   if (ctx.stack_depth < rows) return WickedEvalStatus_StackUnderflow;
@@ -371,7 +392,7 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t Poly(ValidationContext& ctx) {
   uint8_t rows = (arg & 0x0F) + 1;
   uint8_t cols = ((arg >> 4) & 0x0F) + 1;
   uint16_t coeff_size = uint16_t(rows) * cols;
-  uint16_t byte_count = coeff_size * sizeof(float);
+  uint16_t byte_count = coeff_size * WIRE_FLOAT_SIZE;
   if (!ctx.has_bytes(byte_count)) return WickedEvalStatus_IllegalOperation;
   ctx.skip(byte_count);
   if (ctx.stack_depth < 1) return WickedEvalStatus_StackUnderflow;
@@ -381,7 +402,7 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t Poly(ValidationContext& ctx) {
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Call(ValidationContext& ctx) {
-  if (!ctx.has_bytes(sizeof(uint16_t))) {
+  if (!ctx.has_bytes(WIRE_UINT16_SIZE)) {
     return WickedEvalStatus_IllegalOperation;
   }
   uint16_t target_offset = ctx.fetch_uint16();
@@ -407,7 +428,7 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t Piecewise(ValidationContext& ctx) {
   if (num_knots == 0) {
     return WickedEvalStatus_IllegalOperation;
   }
-  size_t req_bytes = static_cast<size_t>(num_knots) * sizeof(float) + static_cast<size_t>(num_knots + 1) * sizeof(uint16_t);
+  size_t req_bytes = static_cast<size_t>(num_knots) * WIRE_FLOAT_SIZE + static_cast<size_t>(num_knots + 1) * WIRE_UINT16_SIZE;
   if (!ctx.has_bytes(static_cast<uint16_t>(req_bytes))) {
     return WickedEvalStatus_IllegalOperation;
   }
@@ -420,11 +441,10 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t Piecewise(ValidationContext& ctx) {
     prev_k = k;
   }
   const uint8_t* offsets_ptr = ctx.pc;
-  ctx.skip(static_cast<uint16_t>((num_knots + 1) * sizeof(uint16_t)));
+  ctx.skip(static_cast<uint16_t>((num_knots + 1) * WIRE_UINT16_SIZE));
   int32_t expected_final = 0;
   for (uint8_t i = 0; i <= num_knots; ++i) {
-    uint16_t branch_offset;
-    std::memcpy(&branch_offset, offsets_ptr + i * sizeof(uint16_t), sizeof(uint16_t));
+    uint16_t branch_offset = read_wire_uint16(offsets_ptr + i * WIRE_UINT16_SIZE);
     int32_t branch_max = 0, branch_final = 0;
     WickedEvalStatus_t status = ValidateSubroutine(
         ctx.prog_data, ctx.prog_end, branch_offset, ctx.stack_depth, ctx.call_depth + 1, &branch_max, &branch_final);
@@ -578,16 +598,14 @@ struct EvalContext {
   }
 
   WICKED_ALWAYS_INLINE uint16_t fetch_uint16() {
-    uint16_t u;
-    std::memcpy(&u, pc, sizeof(uint16_t));
-    pc += sizeof(uint16_t);
+    uint16_t u = read_wire_uint16(pc);
+    pc += WIRE_UINT16_SIZE;
     return u;
   }
 
   WICKED_ALWAYS_INLINE float fetch_float() {
-    float f;
-    std::memcpy(&f, pc, sizeof(float));
-    pc += sizeof(float);
+    float f = read_wire_float(pc);
+    pc += WIRE_FLOAT_SIZE;
     return f;
   }
 
@@ -837,10 +855,16 @@ WICKED_ALWAYS_INLINE void Ln(EvalContext& ctx) {
 
 WICKED_ALWAYS_INLINE void PushVec(EvalContext& ctx) {
   uint8_t size = ctx.fetch_byte() + 1;
-  size_t bytes = size * sizeof(float);
-  std::memcpy(ctx.sp, ctx.pc, bytes);
-  ctx.sp += size;
-  ctx.pc += bytes;
+  if constexpr (std::endian::native == std::endian::little) {
+    size_t bytes = size * WIRE_FLOAT_SIZE;
+    std::memcpy(ctx.sp, ctx.pc, bytes);
+    ctx.sp += size;
+    ctx.pc += bytes;
+  } else {
+    for (uint8_t i = 0; i < size; ++i) {
+      *ctx.sp++ = ctx.fetch_float();
+    }
+  }
 }
 
 WICKED_ALWAYS_INLINE void AddVec(EvalContext& ctx) {
@@ -1120,8 +1144,7 @@ WICKED_ALWAYS_INLINE void Piecewise(EvalContext& ctx) {
   uint8_t high = num_knots;
   while (low < high) {
     uint8_t mid = low + (high - low) / 2;
-    float k;
-    std::memcpy(&k, ctx.pc + mid * sizeof(float), sizeof(float));
+    float k = read_wire_float(ctx.pc + mid * WIRE_FLOAT_SIZE);
     if (x >= k) {
       low = mid + 1;
     } else {
@@ -1131,21 +1154,16 @@ WICKED_ALWAYS_INLINE void Piecewise(EvalContext& ctx) {
   uint8_t branch_idx = low;
 
   if (is_relative) {
-    float x_ref;
-    if (branch_idx == 0) {
-      std::memcpy(&x_ref, ctx.pc, sizeof(float));
-    } else {
-      std::memcpy(&x_ref, ctx.pc + (branch_idx - 1) * sizeof(float), sizeof(float));
-    }
+    float x_ref = (branch_idx == 0)
+        ? read_wire_float(ctx.pc)
+        : read_wire_float(ctx.pc + (branch_idx - 1) * WIRE_FLOAT_SIZE);
     ctx.peek() = x - x_ref;
   }
 
-  const uint8_t* offsets_ptr = ctx.pc + num_knots * sizeof(float);
-  uint16_t target_offset;
-  std::memcpy(&target_offset, offsets_ptr + branch_idx * sizeof(uint16_t), sizeof(uint16_t));
+  const uint8_t* offsets_ptr = ctx.pc + num_knots * WIRE_FLOAT_SIZE;
+  uint16_t target_offset = read_wire_uint16(offsets_ptr + branch_idx * WIRE_UINT16_SIZE);
 
-  ctx.pc = offsets_ptr + (num_knots + 1) * sizeof(uint16_t);
-
+  ctx.pc = offsets_ptr + (num_knots + 1) * WIRE_UINT16_SIZE;
   ctx.sp = WickedPostfixEvaluateInternal(ctx.root_prog, ctx.root_prog + target_offset, ctx.sp, ctx.stack_base);
 }
 
@@ -1228,5 +1246,3 @@ extern "C" float* WickedPostfixEvaluateInternal(const uint8_t* root_prog, const 
     }
   }
 }
-
-
