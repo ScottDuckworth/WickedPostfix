@@ -4,15 +4,7 @@
 
 ### Wire Format & Termination
 
-`WickedPostfix` bytecode programs are headerless and stream-terminated with an explicit return opcode (`Ret` / `1`). Evaluation traps immediately on invalid or out-of-range opcodes, preventing runaway execution on corrupted or unprogrammed memory.
-
-```
-+------------------------------------+
-|  Bytecode instructions ...         |
-+------------------------------------+
-|  Ret (Opcode 1)                    |
-+------------------------------------+
-```
+`WickedPostfix` bytecode programs are headerless and stream-terminated with an explicit return opcode. Wire format is little-endian.
 
 ### Operation Set
 
@@ -81,20 +73,27 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 
 For flash-constrained microcontrollers (e.g., STM32 with 32 KB or 64 KB flash), compile-time preprocessor flags allow reducing flash consumption by routing transcendental operations to hardware accelerators or lightweight polynomial approximations:
 
-#### 1. Trigonometric Hardware Acceleration & Alternative Backends
+#### Optimizations for Trigonometric Functions
 Replaces Newlib's ~3.1 KB software range-reduction machinery and ~0.8 KB arctangent engine with lightweight hardware or DSP alternatives:
 
-* **`-DWICKED_USE_STM32_CORDIC`**: Routes `Sin`, `Cos`, `CosSin`, and `Atan2` (along with `PanTilt`) to the hardware CORDIC co-processor on STM32 microcontrollers (STM32G4, STM32H5, STM32U5, STM32H7R/S). Automatically discovers family headers (`stm32g4xx.h`, `stm32h5xx.h`, `stm32u5xx.h`, etc.) or accepts custom overrides via `-DWICKED_STM32_HEADER="<header.h>"`. Computes trigonometric functions in 4–8 CPU cycles with **0 bytes of lookup tables**, capturing **~5.5 KB** of flash savings and completely dead-stripping all Newlib trigonometric code.
 * **`-DWICKED_USE_CMSIS_DSP`**: Routes `Sin`, `Cos`, and `CosSin` to ARM CMSIS-DSP (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`), eliminating Newlib's ~3.1 KB range-reduction engine.
+* **`-DWICKED_USE_STM32_CORDIC`**: Routes `Sin`, `Cos`, `CosSin`, and `Atan2` (along with `PanTilt`) to the hardware CORDIC co-processor on STM32 microcontrollers (STM32G4, STM32H5, STM32U5, STM32H7R/S). Automatically discovers family headers (`stm32g4xx.h`, `stm32h5xx.h`, `stm32u5xx.h`, etc.) or accepts custom overrides via `-DWICKED_STM32_HEADER="<header.h>"`. Computes trigonometric functions in 4–8 CPU cycles with **0 bytes of lookup tables**, capturing **~5.5 KB** of flash savings and completely dead-stripping all Newlib trigonometric code.
 * **Custom Backends**: Firmware targeting other hardware (e.g., TI TMU, NXP PowerQuad) can provide custom overrides directly:
   * `WICKED_CUSTOM_SIN(t)`
   * `WICKED_CUSTOM_COS(t)`
   * `WICKED_CUSTOM_SINCOS(t, s, c)`
   * `WICKED_CUSTOM_ATAN2(y, x)`
 
-*(Note: Extended trigonometric functions `Tan`, `Asin`, and `Acos` are derived algebraically directly from `Sin`/`Cos` and `Atan2`, dead-stripping `libm`'s `tanf`, `asinf`, and `acosf` automatically without requiring any flags).*
+> [!NOTE]
+> Extended trigonometric functions `Tan`, `Asin`, and `Acos` are derived algebraically directly from `Sin`/`Cos` and `Atan2`, dead-stripping `libm`'s `tanf`, `asinf`, and `acosf` automatically without requiring any flags.
 
-#### 2. Exponential Math Optimization & Fast Math Backends
+> [!NOTE]
+> **Firmware Considerations for STM32 CORDIC:**
+> * **Clock Enable:** The firmware must enable the CORDIC peripheral clock during system initialization before executing expressions (e.g., `__HAL_RCC_CORDIC_CLK_ENABLE()` or `LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_CORDIC)`). Accessing CORDIC registers with the peripheral clock disabled triggers a hardware fault.
+> * **Re-entrancy & Concurrency:** The CORDIC co-processor is stateful (`CSR`, `WDATA`, `RDATA`). If expressions are evaluated concurrently across multiple RTOS threads or inside high-priority interrupts while other firmware tasks use CORDIC, register access must be guarded by a mutex/critical section or dedicated to the expression engine.
+> * **Range & Scale Normalization:** The embedded CORDIC helper automatically maps arbitrary angles in radians to $[-1.0, 1.0)$ for $\sin$ and $\cos$, and scales Cartesian inputs by $1 / \max(|x|, |y|)$ for $\text{atan2}$, requiring zero table lookups or standard library calls.
+
+#### Optimizations for Exponential Functions
 * **Default Case (`Pow` Derivation)**: `Pow` is mathematically derived from `Exp` and `Ln` ($x^y = \exp(y \ln x)$). This dead-strips Newlib's large `powf` function from `libm.a` by default.
 * **`-DWICKED_USE_FAST_EXP_MATH`**: Enables lightweight, table-less IEEE-754 bit-trick and Horner polynomial approximations for `Exp`, `Ln`, and `Pow` with $< 5 \times 10^{-6}$ relative error across the entire float range. Completely eliminates `libm` exponential dependencies, saving **~0.9 KB** of flash across STM32 and ESP32.
 * **Custom Overrides**: Pluggable hooks allow binding vendor DSP or hardware math accelerators:
@@ -102,7 +101,7 @@ Replaces Newlib's ~3.1 KB software range-reduction machinery and ~0.8 KB arctang
   * `WICKED_CUSTOM_LN(x)`
   * `WICKED_CUSTOM_POW(x, y)`
 
-### Flash Memory Footprint (Reading & Evaluation Suite)
+### Flash Memory Footprint
 
 The tables below report measured flash memory consumption compiled with `-Os` for the execution and validation suite (`WickedPostfixValidate`, `WickedPostfixEvaluate`, and `WickedPostfixOpToString`), excluding `WickedPostfixWriter`.
 
@@ -111,50 +110,34 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 
 #### Default Configuration
 
-| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |
+| Target Architecture | Library-Only Flash | Transitive Flash |
 | :--- | :---: | :---: |
 | **STM32G4** (Cortex-M4F) | **4,954 B** (~4.8 KB) | **11,376 B** (~11.1 KB) |
 | **ESP32-S3** (Xtensa LX7) | **6,290 B** (~6.1 KB) | **12,848 B** (~12.5 KB) |
 
-#### Fast Exp Math (`-DWICKED_USE_FAST_EXP_MATH`)
+#### Fast Exponential Math (`-DWICKED_USE_FAST_EXP_MATH`)
 
-| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
-| :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,954 B** (~4.8 KB) | **10,448 B** (~10.2 KB) | **928 B (~0.9 KB)** |
-| **ESP32-S3** (Xtensa LX7) | **6,290 B** (~6.1 KB) | **11,952 B** (~11.7 KB) | **896 B (~0.9 KB)** |
+| Target Architecture | Library-Only Flash | Transitive Flash |
+| :--- | :---: | :---: |
+| **STM32G4** (Cortex-M4F) | **4,954 B** (~4.8 KB) | **10,448 B** (~10.2 KB) |
+| **ESP32-S3** (Xtensa LX7) | **6,290 B** (~6.1 KB) | **11,952 B** (~11.7 KB) |
 
-#### Hardware CORDIC (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_STM32_CORDIC`)
+#### ARM CMSIS-DSP (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_CMSIS_DSP`)
 
-Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5, STM32H7R/S) for trigonometric evaluation (`Sin`, `Cos`, `CosSin`, `Atan2`, and `PanTilt`) together with Fast Exp Math. Because CORDIC executes in hardware registers with zero lookup tables and Fast Exp Math replaces software exponentials, this completely dead-strips all Newlib trigonometric and exponential runtime routines:
+| Target Architecture | Library-Only Flash | Transitive Flash |
+| :--- | :---: | :---: |
+| **STM32G4** (Cortex-M4F) | **4,954 B** (~4.8 KB) | **8,912 B** (~8.7 KB) |
 
-| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
-| :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **5,222 B** (~5.1 KB) | **5,720 B** (~5.6 KB) | **5,656 B (~5.5 KB)** |
+#### STM32 CORDIC (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_STM32_CORDIC`)
 
-#### CMSIS-DSP (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_CMSIS_DSP`)
-
-Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated functions (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`) alongside Fast Exp Math:
-
-| Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Default |
-| :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,954 B** (~4.8 KB) | **8,912 B** (~8.7 KB) | **2,464 B (~2.4 KB)** |
-
-> [!NOTE]
-> **Firmware Considerations for CORDIC:**
-> * **Clock Enable:** The firmware must enable the CORDIC peripheral clock during system initialization before executing expressions (e.g., `__HAL_RCC_CORDIC_CLK_ENABLE()` or `LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_CORDIC)`). Accessing CORDIC registers with the peripheral clock disabled triggers a hardware fault.
-> * **Re-entrancy & Concurrency:** The CORDIC co-processor is stateful (`CSR`, `WDATA`, `RDATA`). If expressions are evaluated concurrently across multiple RTOS threads or inside high-priority interrupts while other firmware tasks use CORDIC, register access must be guarded by a mutex/critical section or dedicated to the expression engine.
-> * **Range & Scale Normalization:** The embedded CORDIC helper automatically maps arbitrary angles in radians to $[-1.0, 1.0)$ for $\sin$/$\cos$, and scales Cartesian inputs by $1 / \max(|x|, |y|)$ for $\text{atan2}$, requiring zero table lookups or standard library calls.
+| Target Architecture | Library-Only Flash | Transitive Flash |
+| :--- | :---: | :---: |
+| **STM32G4** (Cortex-M4F) | **5,222 B** (~5.1 KB) | **5,720 B** (~5.6 KB) |
 
 #### Section Breakdown (STM32G4, Thumb-2)
 * **Bytecode Validation (`ValidateInternal`, `ValidateSubroutine`, `WickedPostfixValidate`)**: ~1,024 B `.text`
 * **Bytecode Evaluation (`WickedPostfixEvaluate`, `WickedPostfixEvaluateInternal`)**: ~2,692 B `.text`
 * **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~592 B `.rodata`
-
-#### Helper Math Functions (`WickedMath.h`, Thumb-2)
-* **Fast Exponential (`wicked_fast_expf`)**: ~200 B `.text`
-* **Fast Natural Logarithm (`wicked_fast_logf`)**: ~220 B `.text`
-* **Hardware CORDIC Sine/Cosine (`wicked_cordic_sincosf`)**: ~140 B `.text`
-* **Hardware CORDIC Arctangent (`wicked_cordic_atan2f`)**: ~116 B `.text`
 
 #### Benchmark Compilation Flags
 * **STM32G4** (GNU Tools for STM32 14.3.1 / `arm-none-eabi-g++`):
