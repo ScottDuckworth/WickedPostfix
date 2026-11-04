@@ -459,16 +459,18 @@ static WickedEvalStatus_t ValidateInternal(
     .call_depth = call_depth,
   };
 
-  bool returned = false;
   while (ctx.pc < ctx.prog_end) {
     uint8_t op = ctx.fetch_byte();
-    if (op == WickedPostfixOp_Ret) {
-      returned = true;
-      break;
-    }
     WickedEvalStatus_t status = WickedEvalStatus_Ok;
-
     switch (op) {
+      case WickedPostfixOp_Ret:
+        if (out_max_depth) {
+          *out_max_depth = ctx.max_stack_depth;
+        }
+        if (out_final_depth) {
+          *out_final_depth = ctx.stack_depth;
+        }
+        return WickedEvalStatus_Ok;
       case WickedPostfixOp_Call:      status = validate::Call(ctx); break;
       case WickedPostfixOp_Piecewise: status = validate::Piecewise(ctx); break;
       case WickedPostfixOp_Push:      status = validate::Push(ctx); break;
@@ -531,18 +533,7 @@ static WickedEvalStatus_t ValidateInternal(
       return status;
     }
   }
-
-  if (!returned) {
-    return WickedEvalStatus_IllegalOperation;
-  }
-
-  if (out_max_depth) {
-    *out_max_depth = ctx.max_stack_depth;
-  }
-  if (out_final_depth) {
-    *out_final_depth = ctx.stack_depth;
-  }
-  return WickedEvalStatus_Ok;
+  return WickedEvalStatus_IllegalOperation;
 }
 
 }  // namespace
