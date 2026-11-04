@@ -112,30 +112,30 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 
 | Target Architecture | Library-Only Flash | Transitive Flash |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,954 B** (~4.8 KB) | **11,372 B** (~11.1 KB) |
+| **STM32G4** (Cortex-M4F) | **4,938 B** (~4.8 KB) | **11,356 B** (~11.1 KB) |
 | **ESP32-S3** (Xtensa LX7) | **6,246 B** (~6.1 KB) | **12,832 B** (~12.5 KB) |
 
 #### Fast Exponential Math (`-DWICKED_USE_FAST_EXP_MATH`)
 
 | Target Architecture | Library-Only Flash | Transitive Flash |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,938 B** (~4.8 KB) | **10,432 B** (~10.2 KB) |
+| **STM32G4** (Cortex-M4F) | **4,922 B** (~4.8 KB) | **10,416 B** (~10.2 KB) |
 | **ESP32-S3** (Xtensa LX7) | **6,246 B** (~6.1 KB) | **11,920 B** (~11.6 KB) |
 
 #### ARM CMSIS-DSP (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_CMSIS_DSP`)
 
 | Target Architecture | Library-Only Flash | Transitive Flash |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,938 B** (~4.8 KB) | **8,748 B** (~8.5 KB) |
+| **STM32G4** (Cortex-M4F) | **4,922 B** (~4.8 KB) | **8,732 B** (~8.5 KB) |
 
 #### STM32 CORDIC (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_STM32_CORDIC`)
 
 | Target Architecture | Library-Only Flash | Transitive Flash |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **5,206 B** (~5.1 KB) | **5,556 B** (~5.4 KB) |
+| **STM32G4** (Cortex-M4F) | **5,190 B** (~5.1 KB) | **5,540 B** (~5.4 KB) |
 
 #### Section Breakdown (STM32G4, Thumb-2)
-* **Bytecode Validation (`ValidateInternal`, `ValidateSubroutine`, `WickedPostfixValidate`)**: ~1,024 B `.text`
+* **Bytecode Validation (`ValidateInternal`, `ValidateSubroutine`, `WickedPostfixValidate`)**: ~1,008 B `.text`
 * **Bytecode Evaluation (`WickedPostfixEvaluate`, `WickedPostfixEvaluateInternal`)**: ~2,692 B `.text`
 * **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~592 B `.rodata`
 

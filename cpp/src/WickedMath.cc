@@ -60,7 +60,7 @@ extern "C" float wicked_cordic_atan2f(float y, float x) {
   float ax = std::abs(x);
   float ay = std::abs(y);
   float max_val = ax > ay ? ax : ay;
-  if (max_val == 0.0f) {
+  if (max_val == 0.0f) [[unlikely]] {
     return 0.0f;
   }
   // Scale to [-0.5, 0.5] to strictly avoid Q1.31 overflow at +1.0
@@ -81,9 +81,9 @@ extern "C" float wicked_cordic_atan2f(float y, float x) {
 // Tableless IEEE-754 bit-trick + Horner polynomial approximation of expf(x).
 // Precision: < 5e-6 relative error across the entire float range.
 extern "C" float wicked_fast_expf(float x) {
-  if (std::isnan(x)) return x;
-  if (x > 88.722839f) return std::numeric_limits<float>::infinity();
-  if (x < -87.33654f) return 0.0f;
+  if (std::isnan(x)) [[unlikely]] return x;
+  if (x > 88.722839f) [[unlikely]] return std::numeric_limits<float>::infinity();
+  if (x < -87.33654f) [[unlikely]] return 0.0f;
 
   // 2^(x * log2(e)) = 2^(k + f)
   constexpr float LOG2E = 1.4426950408889634f;
@@ -114,14 +114,14 @@ extern "C" float wicked_fast_expf(float x) {
 // Tableless IEEE-754 bit-trick + Horner polynomial approximation of logf(x).
 // Precision: < 3e-6 relative error across the entire positive float range.
 extern "C" float wicked_fast_logf(float x) {
-  if (x <= 0.0f) {
+  if (x <= 0.0f) [[unlikely]] {
     if (x == 0.0f) return -std::numeric_limits<float>::infinity();
     return std::numeric_limits<float>::quiet_NaN();
   }
 
   int32_t exp = 0;
   // Handle subnormal floats
-  if (x < 1.17549435e-38f) {
+  if (x < 1.17549435e-38f) [[unlikely]] {
     x *= 16777216.0f;  // 2^24
     exp -= 24;
   }

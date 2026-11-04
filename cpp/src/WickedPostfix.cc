@@ -171,10 +171,10 @@ static WickedEvalStatus_t ValidateSubroutine(
     uint8_t call_depth,
     int32_t* out_max_depth,
     int32_t* out_final_depth) {
-  if (target_offset >= static_cast<size_t>(prog_end - prog_data)) {
+  if (target_offset >= static_cast<size_t>(prog_end - prog_data)) [[unlikely]] {
     return WickedEvalStatus_IllegalOperation;
   }
-  if (call_depth >= MAX_CALL_DEPTH) {
+  if (call_depth >= MAX_CALL_DEPTH) [[unlikely]] {
     return WickedEvalStatus_StackOverflow;
   }
   return ValidateInternal(
@@ -184,7 +184,7 @@ static WickedEvalStatus_t ValidateSubroutine(
 namespace validate {
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Push(ValidationContext& ctx) {
-  if (!ctx.has_bytes(WIRE_FLOAT_SIZE)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(WIRE_FLOAT_SIZE)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   ctx.skip(WIRE_FLOAT_SIZE);
   ctx.stack_depth += 1;
   ctx.update_max(ctx.stack_depth);
@@ -192,10 +192,10 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t Push(ValidationContext& ctx) {
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t PushVec(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t size = ctx.fetch_byte() + 1;
   uint16_t byte_count = uint16_t(size) * WIRE_FLOAT_SIZE;
-  if (!ctx.has_bytes(byte_count)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(byte_count)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   ctx.skip(byte_count);
   ctx.stack_depth += size;
   ctx.update_max(ctx.stack_depth);
@@ -203,183 +203,183 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t PushVec(ValidationContext& ctx) {
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Drop(ValidationContext& ctx) {
-  if (ctx.stack_depth < 1) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 1) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth -= 1;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Dup(ValidationContext& ctx) {
-  if (ctx.stack_depth < 1) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 1) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth += 1;
   ctx.update_max(ctx.stack_depth);
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Swap(ValidationContext& ctx) {
-  if (ctx.stack_depth < 2) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 2) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Over(ValidationContext& ctx) {
-  if (ctx.stack_depth < 2) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 2) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth += 1;
   ctx.update_max(ctx.stack_depth);
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Tuck(ValidationContext& ctx) {
-  if (ctx.stack_depth < 2) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 2) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth += 1;
   ctx.update_max(ctx.stack_depth);
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Nip(ValidationContext& ctx) {
-  if (ctx.stack_depth < 2) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 2) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth -= 1;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Rot(ValidationContext& ctx) {
-  if (ctx.stack_depth < 3) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 3) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Copy(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t arg = ctx.fetch_byte();
   uint8_t offset = arg & 0x1F;
   uint8_t size = (arg >> 5) + 1;
-  if (ctx.stack_depth < int32_t(offset) + size) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < int32_t(offset) + size) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth += size;
   ctx.update_max(ctx.stack_depth);
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t CopyBase(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t arg = ctx.fetch_byte();
   uint8_t index = arg & 0x1F;
   uint8_t size = (arg >> 5) + 1;
-  if (ctx.stack_depth < int32_t(index) + size) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < int32_t(index) + size) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth += size;
   ctx.update_max(ctx.stack_depth);
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Move(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t arg = ctx.fetch_byte();
   uint8_t offset = arg & 0x1F;
   uint8_t size = (arg >> 5) + 1;
-  if (ctx.stack_depth < int32_t(offset) + size) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < int32_t(offset) + size) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Slide(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t arg = ctx.fetch_byte();
   uint8_t keep = (arg & 0x0F) + 1;
   uint8_t drop = (arg >> 4) + 1;
-  if (ctx.stack_depth < int32_t(keep) + drop) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < int32_t(keep) + drop) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth -= drop;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t BinaryOp(ValidationContext& ctx) {
-  if (ctx.stack_depth < 2) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 2) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth -= 1;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t TernaryOp(ValidationContext& ctx) {
-  if (ctx.stack_depth < 3) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 3) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth -= 2;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t UnaryOp(ValidationContext& ctx) {
-  if (ctx.stack_depth < 1) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 1) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t CosSin(ValidationContext& ctx) {
-  if (ctx.stack_depth < 1) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 1) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth += 1;
   ctx.update_max(ctx.stack_depth);
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t PanTilt(ValidationContext& ctx) {
-  if (ctx.stack_depth < 3) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 3) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth -= 1;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Ipow(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   ctx.skip(1);
-  if (ctx.stack_depth < 1) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 1) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t BinaryVec(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t size = ctx.fetch_byte() + 1;
-  if (ctx.stack_depth < int32_t(size) * 2) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < int32_t(size) * 2) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth -= size;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t TernaryVec(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t size = ctx.fetch_byte() + 1;
-  if (ctx.stack_depth < int32_t(size) * 3) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < int32_t(size) * 3) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth -= int32_t(size) * 2;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t UnaryVec(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t size = ctx.fetch_byte() + 1;
-  if (ctx.stack_depth < size) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < size) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t DotVec(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t size = ctx.fetch_byte() + 1;
-  if (ctx.stack_depth < int32_t(size) * 2) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < int32_t(size) * 2) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth -= (int32_t(size) * 2 - 1);
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t ReduceVec(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t size = ctx.fetch_byte() + 1;
-  if (ctx.stack_depth < size) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < size) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth -= (size - 1);
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t ScaleVec(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t size = ctx.fetch_byte() + 1;
-  if (ctx.stack_depth < int32_t(size) + 1) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < int32_t(size) + 1) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth -= 1;
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t MulMat(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t arg = ctx.fetch_byte();
-  if ((arg & 0x0C) != 0) return WickedEvalStatus_IllegalOperation;
+  if ((arg & 0x0C) != 0) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t rows = (arg & 0x03) + 1;
   uint8_t cols = ((arg >> 4) & 0x0F) + 1;
   uint16_t byte_count = uint16_t(rows) * cols * WIRE_FLOAT_SIZE;
-  if (!ctx.has_bytes(byte_count)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(byte_count)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   ctx.skip(byte_count);
-  if (ctx.stack_depth < rows) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < rows) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth -= rows;
   ctx.update_max(ctx.stack_depth + cols);
   ctx.stack_depth += cols;
@@ -387,29 +387,29 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t MulMat(ValidationContext& ctx) {
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Poly(ValidationContext& ctx) {
-  if (!ctx.has_bytes(1)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(1)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   uint8_t arg = ctx.fetch_byte();
   uint8_t rows = (arg & 0x0F) + 1;
   uint8_t cols = ((arg >> 4) & 0x0F) + 1;
   uint16_t coeff_size = uint16_t(rows) * cols;
   uint16_t byte_count = coeff_size * WIRE_FLOAT_SIZE;
-  if (!ctx.has_bytes(byte_count)) return WickedEvalStatus_IllegalOperation;
+  if (!ctx.has_bytes(byte_count)) [[unlikely]] return WickedEvalStatus_IllegalOperation;
   ctx.skip(byte_count);
-  if (ctx.stack_depth < 1) return WickedEvalStatus_StackUnderflow;
+  if (ctx.stack_depth < 1) [[unlikely]] return WickedEvalStatus_StackUnderflow;
   ctx.stack_depth = ctx.stack_depth - 1 + cols;
   ctx.update_max(ctx.stack_depth);
   return WickedEvalStatus_Ok;
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Call(ValidationContext& ctx) {
-  if (!ctx.has_bytes(WIRE_UINT16_SIZE)) {
+  if (!ctx.has_bytes(WIRE_UINT16_SIZE)) [[unlikely]] {
     return WickedEvalStatus_IllegalOperation;
   }
   uint16_t target_offset = ctx.fetch_uint16();
   int32_t sub_max = 0, sub_final = 0;
   WickedEvalStatus_t status = ValidateSubroutine(
       ctx.prog_data, ctx.prog_end, target_offset, ctx.stack_depth, ctx.call_depth + 1, &sub_max, &sub_final);
-  if (status != WickedEvalStatus_Ok) return status;
+  if (status != WickedEvalStatus_Ok) [[unlikely]] return status;
   ctx.update_max(sub_max);
   ctx.stack_depth = sub_final;
   ctx.update_max(ctx.stack_depth);
@@ -417,25 +417,25 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t Call(ValidationContext& ctx) {
 }
 
 WICKED_ALWAYS_INLINE WickedEvalStatus_t Piecewise(ValidationContext& ctx) {
-  if (ctx.stack_depth < 1) {
+  if (ctx.stack_depth < 1) [[unlikely]] {
     return WickedEvalStatus_StackUnderflow;
   }
-  if (!ctx.has_bytes(1)) {
+  if (!ctx.has_bytes(1)) [[unlikely]] {
     return WickedEvalStatus_IllegalOperation;
   }
   uint8_t count_byte = ctx.fetch_byte();
   uint8_t num_knots = count_byte & 0x7F;
-  if (num_knots == 0) {
+  if (num_knots == 0) [[unlikely]] {
     return WickedEvalStatus_IllegalOperation;
   }
   size_t req_bytes = static_cast<size_t>(num_knots) * WIRE_FLOAT_SIZE + static_cast<size_t>(num_knots + 1) * WIRE_UINT16_SIZE;
-  if (!ctx.has_bytes(static_cast<uint16_t>(req_bytes))) {
+  if (!ctx.has_bytes(static_cast<uint16_t>(req_bytes))) [[unlikely]] {
     return WickedEvalStatus_IllegalOperation;
   }
   float prev_k = -std::numeric_limits<float>::infinity();
   for (uint8_t i = 0; i < num_knots; ++i) {
     float k = ctx.fetch_float();
-    if (std::isnan(k) || (i > 0 && k <= prev_k)) {
+    if (std::isnan(k) || (i > 0 && k <= prev_k)) [[unlikely]] {
       return WickedEvalStatus_IllegalOperation;
     }
     prev_k = k;
@@ -448,10 +448,10 @@ WICKED_ALWAYS_INLINE WickedEvalStatus_t Piecewise(ValidationContext& ctx) {
     int32_t branch_max = 0, branch_final = 0;
     WickedEvalStatus_t status = ValidateSubroutine(
         ctx.prog_data, ctx.prog_end, branch_offset, ctx.stack_depth, ctx.call_depth + 1, &branch_max, &branch_final);
-    if (status != WickedEvalStatus_Ok) return status;
+    if (status != WickedEvalStatus_Ok) [[unlikely]] return status;
     if (i == 0) {
       expected_final = branch_final;
-    } else if (branch_final != expected_final) {
+    } else if (branch_final != expected_final) [[unlikely]] {
       return WickedEvalStatus_UnexpectedStackSize;
     }
     ctx.update_max(branch_max);
@@ -550,7 +550,7 @@ static WickedEvalStatus_t ValidateInternal(
         return WickedEvalStatus_UndefinedOperation;
     }
 
-    if (status != WickedEvalStatus_Ok) {
+    if (status != WickedEvalStatus_Ok) [[unlikely]] {
       return status;
     }
   }
@@ -560,7 +560,7 @@ static WickedEvalStatus_t ValidateInternal(
 }  // namespace
 
 extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, size_t buffer_size, uint16_t initial_stack_size, uint16_t* minimum_stack_capacity, uint16_t* final_stack_size) {
-  if (!prog_data || buffer_size == 0) {
+  if (!prog_data || buffer_size == 0) [[unlikely]] {
     return WickedEvalStatus_IllegalOperation;
   }
 
@@ -568,11 +568,11 @@ extern "C" WickedEvalStatus_t WickedPostfixValidate(const uint8_t* prog_data, si
   int32_t final_depth = 0;
   WickedEvalStatus_t status = ValidateInternal(
       prog_data, prog_data + buffer_size, prog_data, initial_stack_size, 0, &max_depth, &final_depth);
-  if (status != WickedEvalStatus_Ok) {
+  if (status != WickedEvalStatus_Ok) [[unlikely]] {
     return status;
   }
 
-  if (max_depth > UINT16_MAX) {
+  if (max_depth > UINT16_MAX) [[unlikely]] {
     return WickedEvalStatus_StackOverflow;
   }
 
@@ -642,8 +642,8 @@ struct EvalContext {
 };
 
 WICKED_ALWAYS_INLINE static float ipow(float base, int exp) {
-  if (exp == 0) return 1.0f;
-  if (exp < 0) {
+  if (exp == 0) [[unlikely]] return 1.0f;
+  if (exp < 0) [[unlikely]] {
     base = 1.0f / base;
     exp = -exp;
   }
@@ -1240,7 +1240,7 @@ extern "C" float* WickedPostfixEvaluateInternal(const uint8_t* root_prog, const 
       case WickedPostfixOp_ScaleVec:  ops::ScaleVec(ctx); break;
       case WickedPostfixOp_MulMat:    ops::MulMat(ctx); break;
       case WickedPostfixOp_Poly:      ops::Poly(ctx); break;
-      default:
+      [[unlikely]] default:
         WICKED_CUSTOM_TRAP();
         return ctx.sp;
     }
