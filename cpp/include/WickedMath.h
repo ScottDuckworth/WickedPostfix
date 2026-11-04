@@ -100,7 +100,7 @@ static inline float wicked_atan2f(float y, float x) {
   return WICKED_CUSTOM_ATAN2(y, x);
 }
 
-// --- EXPONENTIAL / POWER MACRO DISPATCH ---
+// --- EXPONENTIAL / POWER DISPATCH CONFIGURATION ---
 
 // Fast exponential math routines (< 5e-6 relative error, tableless)
 float wicked_fast_expf(float x);
@@ -110,27 +110,41 @@ float wicked_fast_logf(float x);
 // Dead-strips Newlib's heavy powf from libm while dispatching through wicked_expf / wicked_logf.
 float wicked_derived_powf(float x, float y);
 
-#if defined(WICKED_CUSTOM_EXP)
-#define wicked_expf(x) WICKED_CUSTOM_EXP(x)
-#elif defined(WICKED_USE_FAST_EXP_MATH)
-#define wicked_expf(x) wicked_fast_expf(x)
-#else
-#define wicked_expf(x) expf(x)
+#if defined(WICKED_USE_FAST_EXP_MATH)
+#ifndef WICKED_CUSTOM_EXP
+#define WICKED_CUSTOM_EXP(x) wicked_fast_expf(x)
+#endif
+#ifndef WICKED_CUSTOM_LN
+#define WICKED_CUSTOM_LN(x) wicked_fast_logf(x)
+#endif
 #endif
 
-#if defined(WICKED_CUSTOM_LN)
-#define wicked_logf(x) WICKED_CUSTOM_LN(x)
-#elif defined(WICKED_USE_FAST_EXP_MATH)
-#define wicked_logf(x) wicked_fast_logf(x)
-#else
-#define wicked_logf(x) logf(x)
+#ifndef WICKED_CUSTOM_EXP
+#define WICKED_CUSTOM_EXP(x) expf(x)
 #endif
 
-#if defined(WICKED_CUSTOM_POW)
-#define wicked_powf(x, y) WICKED_CUSTOM_POW(x, y)
-#else
-#define wicked_powf(x, y) wicked_derived_powf(x, y)
+#ifndef WICKED_CUSTOM_LN
+#define WICKED_CUSTOM_LN(x) logf(x)
 #endif
+
+#ifndef WICKED_CUSTOM_POW
+#define WICKED_CUSTOM_POW(x, y) wicked_derived_powf((x), (y))
+#endif
+
+// Computes natural exponential e^x.
+static inline float wicked_expf(float x) {
+  return WICKED_CUSTOM_EXP(x);
+}
+
+// Computes natural logarithm ln(x).
+static inline float wicked_logf(float x) {
+  return WICKED_CUSTOM_LN(x);
+}
+
+// Computes power x^y.
+static inline float wicked_powf(float x, float y) {
+  return WICKED_CUSTOM_POW(x, y);
+}
 
 #ifdef __cplusplus
 }
