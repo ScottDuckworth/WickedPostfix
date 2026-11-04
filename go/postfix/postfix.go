@@ -30,61 +30,61 @@ type Operation uint8
 
 const (
 	Operation_Undefined  Operation = 0
-	Operation_Push       Operation = 1
-	Operation_Dup        Operation = 2
-	Operation_Over       Operation = 3
-	Operation_Tuck       Operation = 4
-	Operation_Drop       Operation = 5
-	Operation_Nip        Operation = 6
-	Operation_Swap       Operation = 7
-	Operation_Rot        Operation = 8
-	Operation_Move       Operation = 9
-	Operation_Copy       Operation = 10
-	Operation_CopyBase   Operation = 11
-	Operation_Slide      Operation = 12
-	Operation_Add        Operation = 13
-	Operation_Sub        Operation = 14
-	Operation_Mul        Operation = 15
-	Operation_Div        Operation = 16
-	Operation_MulAdd     Operation = 17
-	Operation_MulSub     Operation = 18
-	Operation_SubMul     Operation = 19
-	Operation_Neg        Operation = 20
-	Operation_Abs        Operation = 21
-	Operation_Inv        Operation = 22
-	Operation_Sqrt       Operation = 23
-	Operation_Sin        Operation = 24
-	Operation_Cos        Operation = 25
-	Operation_Tan        Operation = 26
-	Operation_Asin       Operation = 27
-	Operation_Acos       Operation = 28
-	Operation_Atan2      Operation = 29
-	Operation_CosSin     Operation = 30
-	Operation_PanTilt    Operation = 31
-	Operation_Ipow       Operation = 32
-	Operation_Pow        Operation = 33
-	Operation_Exp        Operation = 34
-	Operation_Ln         Operation = 35
-	Operation_PushVec    Operation = 36
-	Operation_AddVec     Operation = 37
-	Operation_SubVec     Operation = 38
-	Operation_MulVec     Operation = 39
-	Operation_DivVec     Operation = 40
-	Operation_MulAddVec  Operation = 41
-	Operation_MulSubVec  Operation = 42
-	Operation_SubMulVec  Operation = 43
-	Operation_NegVec     Operation = 44
-	Operation_AbsVec     Operation = 45
-	Operation_InvVec     Operation = 46
-	Operation_DotVec     Operation = 47
-	Operation_NormSqVec  Operation = 48
-	Operation_SumVec     Operation = 49
-	Operation_ScaleVec   Operation = 50
-	Operation_MulMat     Operation = 51
-	Operation_Poly       Operation = 52
-	Operation_Call       Operation = 253
-	Operation_Piecewise  Operation = 254
-	Operation_Ret        Operation = 255
+	Operation_Ret        Operation = 1
+	Operation_Call       Operation = 2
+	Operation_Piecewise  Operation = 3
+	Operation_Push       Operation = 4
+	Operation_Dup        Operation = 5
+	Operation_Over       Operation = 6
+	Operation_Tuck       Operation = 7
+	Operation_Drop       Operation = 8
+	Operation_Nip        Operation = 9
+	Operation_Swap       Operation = 10
+	Operation_Rot        Operation = 11
+	Operation_Move       Operation = 12
+	Operation_Copy       Operation = 13
+	Operation_CopyBase   Operation = 14
+	Operation_Slide      Operation = 15
+	Operation_Add        Operation = 16
+	Operation_Sub        Operation = 17
+	Operation_Mul        Operation = 18
+	Operation_Div        Operation = 19
+	Operation_MulAdd     Operation = 20
+	Operation_MulSub     Operation = 21
+	Operation_SubMul     Operation = 22
+	Operation_Neg        Operation = 23
+	Operation_Abs        Operation = 24
+	Operation_Inv        Operation = 25
+	Operation_Sqrt       Operation = 26
+	Operation_Sin        Operation = 27
+	Operation_Cos        Operation = 28
+	Operation_Tan        Operation = 29
+	Operation_Asin       Operation = 30
+	Operation_Acos       Operation = 31
+	Operation_Atan2      Operation = 32
+	Operation_CosSin     Operation = 33
+	Operation_PanTilt    Operation = 34
+	Operation_Ipow       Operation = 35
+	Operation_Pow        Operation = 36
+	Operation_Exp        Operation = 37
+	Operation_Ln         Operation = 38
+	Operation_PushVec    Operation = 39
+	Operation_AddVec     Operation = 40
+	Operation_SubVec     Operation = 41
+	Operation_MulVec     Operation = 42
+	Operation_DivVec     Operation = 43
+	Operation_MulAddVec  Operation = 44
+	Operation_MulSubVec  Operation = 45
+	Operation_SubMulVec  Operation = 46
+	Operation_NegVec     Operation = 47
+	Operation_AbsVec     Operation = 48
+	Operation_InvVec     Operation = 49
+	Operation_DotVec     Operation = 50
+	Operation_NormSqVec  Operation = 51
+	Operation_SumVec     Operation = 52
+	Operation_ScaleVec   Operation = 53
+	Operation_MulMat     Operation = 54
+	Operation_Poly       Operation = 55
 )
 
 // Expression represents an immutable bytecode sequence of postfix operations.
@@ -239,20 +239,96 @@ func (expr *Expression) Write(w io.Writer) error {
 // Read deserializes bytecode bytes from the given reader until Operation_Ret or EOF.
 func (expr *Expression) Read(r io.Reader) error {
 	expr.Prog = nil
-	var b [1]byte
-	for {
-		n, err := r.Read(b[:])
-		if n > 0 {
-			expr.Prog = append(expr.Prog, b[0])
-			if Operation(b[0]) == Operation_Ret {
-				return nil
-			}
+	buf := make([]byte, 1)
+	readExact := func(n int) error {
+		b := make([]byte, n)
+		m, err := io.ReadFull(r, b)
+		if m > 0 {
+			expr.Prog = append(expr.Prog, b[:m]...)
 		}
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			return nil
+		}
+		return err
+	}
+	for {
+		_, err := io.ReadFull(r, buf)
 		if err == io.EOF {
 			return nil
 		}
 		if err != nil {
 			return err
+		}
+		opByte := buf[0]
+		expr.Prog = append(expr.Prog, opByte)
+		op := Operation(opByte)
+		if op == Operation_Ret {
+			return nil
+		}
+		var payloadLen int
+		switch op {
+		case Operation_Call:
+			payloadLen = 2
+		case Operation_Piecewise:
+			cnt := make([]byte, 1)
+			n, err := io.ReadFull(r, cnt)
+			if n > 0 {
+				expr.Prog = append(expr.Prog, cnt[:n]...)
+			}
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			numKnots := int(cnt[0] & 0x7F)
+			payloadLen = numKnots*4 + (numKnots+1)*2
+		case Operation_Push:
+			payloadLen = 4
+		case Operation_PushVec:
+			cnt := make([]byte, 1)
+			n, err := io.ReadFull(r, cnt)
+			if n > 0 {
+				expr.Prog = append(expr.Prog, cnt[:n]...)
+			}
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			size := int(cnt[0]) + 1
+			payloadLen = size * 4
+		case Operation_Ipow, Operation_Copy, Operation_CopyBase, Operation_Move, Operation_Slide,
+			Operation_AddVec, Operation_SubVec, Operation_MulVec, Operation_DivVec,
+			Operation_MulAddVec, Operation_MulSubVec, Operation_SubMulVec,
+			Operation_NegVec, Operation_AbsVec, Operation_InvVec,
+			Operation_DotVec, Operation_NormSqVec, Operation_SumVec, Operation_ScaleVec:
+			payloadLen = 1
+		case Operation_MulMat:
+			payloadLen = 2
+		case Operation_Poly:
+			dims := make([]byte, 1)
+			n, err := io.ReadFull(r, dims)
+			if n > 0 {
+				expr.Prog = append(expr.Prog, dims[:n]...)
+			}
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			rows := int(dims[0]&0x0F) + 1
+			cols := int((dims[0]>>4)&0x0F) + 1
+			payloadLen = rows * cols * 4
+		default:
+			payloadLen = 0
+		}
+		if payloadLen > 0 {
+			if err := readExact(payloadLen); err != nil {
+				return err
+			}
 		}
 	}
 }
@@ -306,6 +382,7 @@ type Builder struct {
 	subroutines      [][]uint8
 	callPatches      []callPatch
 	piecewisePatches []piecewisePatch
+	hasRet           bool
 }
 
 // MakeBuilder creates an empty postfix expression builder.
@@ -317,10 +394,10 @@ func MakeBuilder() *Builder {
 func (b *Builder) DefineSubroutine(fn func(sub *Builder)) SubroutineHandle {
 	sub := MakeBuilder()
 	fn(sub)
-	prog := slices.Clone(sub.expr.Prog)
-	if len(prog) == 0 || Operation(prog[len(prog)-1]) != Operation_Ret {
-		prog = append(prog, uint8(Operation_Ret))
+	if !sub.hasRet {
+		sub.Ret()
 	}
+	prog := slices.Clone(sub.expr.Prog)
 	idx := len(b.subroutines)
 	b.subroutines = append(b.subroutines, prog)
 
@@ -437,13 +514,14 @@ func (b *Builder) PiecewiseOffsets(relative bool, knots []float32, offsets []uin
 // Ret appends an Operation_Ret instruction (end of program).
 func (b *Builder) Ret() *Builder {
 	b.expr.Prog = append(b.expr.Prog, uint8(Operation_Ret))
+	b.hasRet = true
 	return b
 }
 
 // Build returns the completed postfix Expression constructed by this builder, ensuring trailing Ret and backpatching subroutines.
 func (b *Builder) Build() *Expression {
-	if len(b.expr.Prog) == 0 || Operation(b.expr.Prog[len(b.expr.Prog)-1]) != Operation_Ret {
-		b.expr.Prog = append(b.expr.Prog, uint8(Operation_Ret))
+	if !b.hasRet {
+		b.Ret()
 	}
 
 	subOffsets := make([]uint16, len(b.subroutines))

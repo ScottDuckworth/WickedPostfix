@@ -26,11 +26,11 @@ static_assert(sizeof(float) == 4);
 #endif
 
 extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
-  if (op == WickedPostfixOp_Ret) return "Ret";
-  if (op == WickedPostfixOp_Piecewise) return "Piecewise";
-  if (op == WickedPostfixOp_Call) return "Call";
   switch (op) {
     case WickedPostfixOp_Undefined: return "Undefined";
+    case WickedPostfixOp_Ret:       return "Ret";
+    case WickedPostfixOp_Call:      return "Call";
+    case WickedPostfixOp_Piecewise: return "Piecewise";
     case WickedPostfixOp_Push:      return "Push";
     case WickedPostfixOp_Dup:       return "Dup";
     case WickedPostfixOp_Over:      return "Over";
@@ -83,8 +83,9 @@ extern "C" const char* WickedPostfixOpToString(WickedPostfixOp_t op) {
     case WickedPostfixOp_ScaleVec:  return "ScaleVec";
     case WickedPostfixOp_MulMat:    return "MulMat";
     case WickedPostfixOp_Poly:      return "Poly";
+    default:
+      return "UNKNOWN";
   }
-  return "UNKNOWN";
 }
 
 namespace {
@@ -1222,7 +1223,8 @@ extern "C" float* WickedPostfixEvaluateInternal(const uint8_t* root_prog, const 
       case WickedPostfixOp_MulMat:    ops::MulMat(ctx); break;
       case WickedPostfixOp_Poly:      ops::Poly(ctx); break;
       default:
-        break;
+        WICKED_CUSTOM_TRAP();
+        return ctx.sp;
     }
   }
 }

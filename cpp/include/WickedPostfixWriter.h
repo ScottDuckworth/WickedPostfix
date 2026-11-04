@@ -398,7 +398,10 @@ class WickedPostfixEmitter {
   }
 
   // Terminates postfix evaluation (returns from program).
-  void Ret() { EmitOp(WickedPostfixOp_Ret); }
+  void Ret() {
+    EmitOp(WickedPostfixOp_Ret);
+    derived().set_ends_with_ret(true);
+  }
 };
 
 // In-place, zero-allocation, bounds-checked streaming writer.
@@ -413,6 +416,8 @@ class WickedPostfixStreamWriter : public WickedPostfixEmitter<WickedPostfixStrea
   explicit WickedPostfixStreamWriter(std::span<uint8_t> buffer)
       : WickedPostfixStreamWriter(buffer.data(), buffer.size()) {}
 
+  void set_ends_with_ret(bool val) { ends_with_ret_ = val; }
+
   // Emits a raw byte into the stream with strict bounds checking.
   void EmitByte(uint8_t b) {
     if (offset_ < capacity_) {
@@ -421,14 +426,16 @@ class WickedPostfixStreamWriter : public WickedPostfixEmitter<WickedPostfixStrea
       overflow_ = true;
     }
     offset_++;
+    ends_with_ret_ = false;
   }
 
   // Finalizes the bytecode stream: appends Ret (if not already emitted) and validates bounds.
   // Returns true on success, false if buffer overflowed or exceeds 65535 bytes.
   bool Finalize() {
     if (overflow_) return false;
-    if (offset_ == 0 || dest_[offset_ - 1] != static_cast<uint8_t>(WickedPostfixOp_Ret)) {
+    if (!ends_with_ret_) {
       EmitByte(static_cast<uint8_t>(WickedPostfixOp_Ret));
+      ends_with_ret_ = true;
       if (overflow_) return false;
     }
     if (offset_ > UINT16_MAX) return false;
@@ -468,6 +475,7 @@ class WickedPostfixStreamWriter : public WickedPostfixEmitter<WickedPostfixStrea
   size_t capacity_ = 0;
   size_t offset_ = 0;
   bool overflow_ = false;
+  bool ends_with_ret_ = false;
 };
 
 // Handle referencing a defined subroutine in WickedPostfixWriter.
@@ -492,7 +500,7 @@ class WickedPostfixWriter : public WickedPostfixEmitter<WickedPostfixWriter> {
   SubroutineHandle DefineSubroutine(const WickedPostfixWriter& sub) {
     size_t idx = subroutines_.size();
     std::vector<uint8_t> prog = sub.prog_;
-    if (prog.empty() || prog.back() != static_cast<uint8_t>(WickedPostfixOp_Ret)) {
+    if (!sub.ends_with_ret()) {
       prog.push_back(static_cast<uint8_t>(WickedPostfixOp_Ret));
     }
     subroutines_.push_back(std::move(prog));
@@ -653,21 +661,29 @@ class WickedPostfixWriter : public WickedPostfixEmitter<WickedPostfixWriter> {
     return buffer;
   }
 
+  void set_ends_with_ret(bool val) { ends_with_ret_ = val; }
+
   // Clears the bytecode buffer and pending subroutines.
   void clear() {
     prog_.clear();
     subroutines_.clear();
     call_patches_.clear();
     piecewise_patches_.clear();
+    ends_with_ret_ = false;
   }
 
   // Emits a raw byte into the bytecode stream.
-  void EmitByte(uint8_t b) { prog_.push_back(b); }
+  void EmitByte(uint8_t b) {
+    prog_.push_back(b);
+    ends_with_ret_ = false;
+  }
+
+  bool ends_with_ret() const {
+    return ends_with_ret_;
+  }
 
  private:
-  bool ends_with_ret() const {
-    return !prog_.empty() && prog_.back() == static_cast<uint8_t>(WickedPostfixOp_Ret);
-  }
+  bool ends_with_ret_ = false;
 
   struct CallPatch {
     size_t in_subroutine_index;

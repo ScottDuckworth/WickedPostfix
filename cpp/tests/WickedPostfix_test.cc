@@ -1083,7 +1083,7 @@ TEST(EvalTest, IpowStackUnderflow) {
 }
 
 TEST(EvalTest, IpowIllegalTruncated) {
-  uint8_t raw[] = {1, 0, static_cast<uint8_t>(WickedPostfixOp_Ipow)};
+  uint8_t raw[] = {static_cast<uint8_t>(WickedPostfixOp_Ipow)};
   TestEval eval(4, {2});
   EXPECT_TRUE(WickedPostfixRead(raw, sizeof(raw), &eval));
   EXPECT_EQ(WickedPostfixValidate(&eval, 1), WickedEvalStatus_IllegalOperation);
@@ -2002,8 +2002,12 @@ TEST(EvalTest, UnalignedBuffer) {
 }
 
 TEST(EvalTest, RetOpcode) {
-  EXPECT_EQ(static_cast<uint8_t>(WickedPostfixOp_Ret), 255);
+  EXPECT_EQ(static_cast<uint8_t>(WickedPostfixOp_Ret), 1);
+  EXPECT_EQ(static_cast<uint8_t>(WickedPostfixOp_Call), 2);
+  EXPECT_EQ(static_cast<uint8_t>(WickedPostfixOp_Piecewise), 3);
   EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Ret), "Ret");
+  EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Call), "Call");
+  EXPECT_STREQ(WickedPostfixOpToString(WickedPostfixOp_Piecewise), "Piecewise");
 }
 
 TEST(EvalTest, MissingRet) {
@@ -2019,20 +2023,13 @@ TEST(EvalTest, MissingRet) {
 }
 
 TEST(EvalTest, ErasedNorFlash) {
-  // Erased NOR flash is all 0xFF, which translates to immediate Ret opcodes
+  // Erased NOR flash is all 0xFF, which translates to an undefined opcode and fails validation
   uint8_t erased_flash[64];
   memset(erased_flash, 0xFF, sizeof(erased_flash));
 
   uint16_t min_cap = 0, final_sz = 0;
   EXPECT_EQ(::WickedPostfixValidate(erased_flash, sizeof(erased_flash), 2, &min_cap, &final_sz),
-            WickedEvalStatus_Ok);
-  EXPECT_EQ(min_cap, 2);
-  EXPECT_EQ(final_sz, 2);
-
-  float stack[4] = {10.0f, 20.0f};
-  ::WickedPostfixEvaluate(erased_flash, 2, stack);
-  EXPECT_EQ(stack[0], 10.0f);
-  EXPECT_EQ(stack[1], 20.0f);
+            WickedEvalStatus_UndefinedOperation);
 }
 
 TEST(EvalTest, PrematureRet) {

@@ -4,13 +4,13 @@
 
 ### Wire Format & Termination
 
-`WickedPostfix` bytecode programs are headerless and stream-terminated with an explicit return opcode (`Ret` / `255`). Opcode `255` (`0xFF`) matches the erased state of NOR flash memory, so runaway execution into unprogrammed flash safely terminates immediately without error.
+`WickedPostfix` bytecode programs are headerless and stream-terminated with an explicit return opcode (`Ret` / `1`). Evaluation traps immediately on invalid or out-of-range opcodes, preventing runaway execution on corrupted or unprogrammed memory.
 
 ```
 +------------------------------------+
 |  Bytecode instructions ...         |
 +------------------------------------+
-|  Ret (Opcode 255 / 0xFF)           |
+|  Ret (Opcode 1)                    |
 +------------------------------------+
 ```
 
@@ -21,61 +21,61 @@ Stack transformations show stack states ordered from deepest to top of stack (`b
 | Opcode | Operation Name | Stack Transformation | Description | Operand Bit Fields |
 |:---|:---|:---|:---|:---|
 | 0 | `Undefined` | — | Undefined opcode (halts validation with illegal operation error) | *None* |
-| 1 | `Push` | ` ` → `v` | Push scalar float literal onto stack | **Followed by**: 4 bytes (IEEE 754 32-bit float literal) |
-| 2 | `Dup` | `a` → `a a` | Duplicate top stack value | *None* |
-| 3 | `Over` | `a b` → `a b a` | Copy second stack value to top | *None* |
-| 4 | `Tuck` | `a b` → `b a b` | Insert copy of top value beneath second value | *None* |
-| 5 | `Drop` | `a` → ` ` | Discard top stack value | *None* |
-| 6 | `Nip` | `a b` → `b` | Discard second value from top | *None* |
-| 7 | `Swap` | `a b` → `b a` | Swap top two stack values | *None* |
-| 8 | `Rot` | `a b c` → `b c a` | Rotate third value to top | *None* |
-| 9 | `Move` | `... v[N] ...` → `... ... v[N]` | Move / rotate element or subvector from depth to top | **1 byte**:<br>• `[4:0]`: `offset` (0..31 depth below top)<br>• `[7:5]`: `size - 1` (0..7 for vector size 1..8) |
-| 10 | `Copy` | `... v[N] ...` → `... v[N] ... v[N]` | Copy element or subvector from depth to top | **1 byte**:<br>• `[4:0]`: `offset` (0..31 depth below top)<br>• `[7:5]`: `size - 1` (0..7 for vector size 1..8) |
-| 11 | `CopyBase` | `... v[N] ...` → `... v[N] ... v[N]` | Copy element or subvector from bottom index to top of stack | **1 byte**:<br>• `[4:0]`: `index` (0..31 index from bottom of stack)<br>• `[7:5]`: `size - 1` (0..7 for vector size 1..8) |
-| 12 | `Slide` | `... d[D] k[K]` → `... k[K]` | Keep top K elements and drop D elements directly beneath them | **1 byte**:<br>• `[3:0]`: `keep - 1` (0..15 for 1..16 elements to keep)<br>• `[7:4]`: `drop - 1` (0..15 for 1..16 elements to drop) |
-| 13 | `Add` | `a b` → `a + b` | Scalar addition | *None* |
-| 14 | `Sub` | `a b` → `a - b` | Scalar subtraction | *None* |
-| 15 | `Mul` | `a b` → `a * b` | Scalar multiplication | *None* |
-| 16 | `Div` | `a b` → `a / b` | Scalar division | *None* |
-| 17 | `MulAdd` | `a b c` → `a * b + c` | Fused multiply-add | *None* |
-| 18 | `MulSub` | `a b c` → `a * b - c` | Fused multiply-subtract | *None* |
-| 19 | `SubMul` | `c a b` → `c - a * b` | Fused subtract-multiply | *None* |
-| 20 | `Neg` | `a` → `-a` | Scalar negation | *None* |
-| 21 | `Abs` | `a` → `\|a\|` | Scalar absolute value | *None* |
-| 22 | `Inv` | `a` → `1 / a` | Scalar reciprocal | *None* |
-| 23 | `Sqrt` | `a` → `sqrt(a)` | Square root | *None* |
-| 24 | `Sin` | `a` → `sin(a)` | Sine | *None* |
-| 25 | `Cos` | `a` → `cos(a)` | Cosine | *None* |
-| 26 | `Tan` | `a` → `tan(a)` | Tangent | *None* |
-| 27 | `Asin` | `a` → `asin(a)` | Arc sine | *None* |
-| 28 | `Acos` | `a` → `acos(a)` | Arc cosine | *None* |
-| 29 | `Atan2` | `x y` → `atan2(y, x)` | Four-quadrant inverse tangent | *None* |
-| 30 | `CosSin` | `t` → `cos(t) sin(t)` | Simultaneous scalar cosine and sine evaluation | *None* |
-| 31 | `PanTilt` | `v[3]` → `pan tilt` | Pan and tilt spherical angles from 3D line-of-sight vector $[v_0, v_1, v_2]$: $\text{pan} = \text{atan2}(v_1, v_0)$, $\text{tilt} = \text{atan2}(v_2, \sqrt{v_0^2 + v_1^2})$ | *None* |
-| 32 | `Ipow` | `a` → `a ^ exp` | Integer exponentiation | **1 byte**:<br>• `[7:0]`: `exp` (two's complement signed 8-bit int, -128..127) |
-| 33 | `Pow` | `a b` → `a ^ b` | Scalar power | *None* |
-| 34 | `Exp` | `a` → `exp(a)` | Exponential | *None* |
-| 35 | `Ln` | `a` → `ln(a)` | Natural logarithm | *None* |
-| 36 | `PushVec` | ` ` → `v[N]` | Push vector float literals onto stack | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$)<br>**Followed by**: `size * 4` bytes (IEEE 754 32-bit float literals) |
-| 37 | `AddVec` | `u[N] v[N]` → `(u + v)[N]` | Componentwise vector addition | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 38 | `SubVec` | `u[N] v[N]` → `(u - v)[N]` | Componentwise vector subtraction | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 39 | `MulVec` | `u[N] v[N]` → `(u * v)[N]` | Componentwise vector multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 40 | `DivVec` | `u[N] v[N]` → `(u / v)[N]` | Componentwise vector division | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 41 | `MulAddVec` | `a[N] b[N] c[N]` → `(a * b + c)[N]` | Componentwise fused multiply-add | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 42 | `MulSubVec` | `a[N] b[N] c[N]` → `(a * b - c)[N]` | Componentwise fused multiply-subtract | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 43 | `SubMulVec` | `c[N] a[N] b[N]` → `(c - a * b)[N]` | Componentwise fused subtract-multiply | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 44 | `NegVec` | `v[N]` → `(-v)[N]` | Componentwise vector negation | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 45 | `AbsVec` | `v[N]` → `\|v\|[N]` | Componentwise vector absolute value | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 46 | `InvVec` | `v[N]` → `(1 / v)[N]` | Componentwise vector reciprocal | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 47 | `DotVec` | `u[N] v[N]` → `(u · v)` | Vector dot product | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 48 | `NormSqVec` | `v[N]` → `\|\|v\|\|^2` | Squared Euclidean norm $\|v\|^2$ | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 49 | `SumVec` | `v[N]` → `sum(v)` | Sum of vector components | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 50 | `ScaleVec` | `v[N] s` → `(s * v)[N]` | Vector scalar multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
-| 51 | `MulMat` | `v[rows]` → `(v * M)[cols]` | Vector-matrix multiplication $w = v \cdot M$ with immediate matrix $M$ | **1 byte dimension**:<br>• `[1:0]`: `rows - 1` (0..3 for 1..4 input dimensions / rows in $M$)<br>• `[3:2]`: Reserved (must be 0)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions / cols in $M$)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit floats ($M$ in column-major order: column by column) |
-| 52 | `Poly` | `t` → `P(t)[cols]` | Polynomial evaluation for scalar $t$ with immediate coefficients | **1 byte dimension**:<br>• `[3:0]`: `rows - 1` (0..15 for 1..16 coefficients per column / degree + 1)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit float coefficients (degree by degree from highest order down to constant term: for each degree, column 0 to cols-1) |
-| 253 | `Call` | `...` → `...` | Subroutine call | **2 bytes**: `uint16_t` target byte offset from program start |
-| 254 | `Piecewise` | `... x` → `...` | Piecewise function evaluation over scalar $x$ | **1 byte count**:<br>• `[6:0]`: `num_knots` $N$ ($1 \le N \le 127$)<br>• `[7]`: Mode bit ($0 = \text{Absolute } x, 1 = \text{Relative } x - x_{\text{ref}}$)<br>**Followed by**:<br>• $N \times 4$ bytes of sorted IEEE 754 32-bit float knots ($x_0 < x_1 < \dots < x_{N-1}$)<br>• $(N + 1) \times 2$ bytes of `uint16_t` branch target offsets |
-| 255 | `Ret` | — | End of program or return from subroutine | *None* |
+| 1 | `Ret` | — | End of program or return from subroutine | *None* |
+| 2 | `Call` | `...` → `...` | Subroutine call | **2 bytes**: `uint16_t` target byte offset from program start |
+| 3 | `Piecewise` | `... x` → `...` | Piecewise function evaluation over scalar $x$ | **1 byte count**:<br>• `[6:0]`: `num_knots` $N$ ($1 \le N \le 127$)<br>• `[7]`: Mode bit ($0 = \text{Absolute } x, 1 = \text{Relative } x - x_{\text{ref}}$)<br>**Followed by**:<br>• $N \times 4$ bytes of sorted IEEE 754 32-bit float knots ($x_0 < x_1 < \dots < x_{N-1}$)<br>• $(N + 1) \times 2$ bytes of `uint16_t` branch target offsets |
+| 4 | `Push` | ` ` → `v` | Push scalar float literal onto stack | **Followed by**: 4 bytes (IEEE 754 32-bit float literal) |
+| 5 | `Dup` | `a` → `a a` | Duplicate top stack value | *None* |
+| 6 | `Over` | `a b` → `a b a` | Copy second stack value to top | *None* |
+| 7 | `Tuck` | `a b` → `b a b` | Insert copy of top value beneath second value | *None* |
+| 8 | `Drop` | `a` → ` ` | Discard top stack value | *None* |
+| 9 | `Nip` | `a b` → `b` | Discard second value from top | *None* |
+| 10 | `Swap` | `a b` → `b a` | Swap top two stack values | *None* |
+| 11 | `Rot` | `a b c` → `b c a` | Rotate third value to top | *None* |
+| 12 | `Move` | `... v[N] ...` → `... ... v[N]` | Move / rotate element or subvector from depth to top | **1 byte**:<br>• `[4:0]`: `offset` (0..31 depth below top)<br>• `[7:5]`: `size - 1` (0..7 for vector size 1..8) |
+| 13 | `Copy` | `... v[N] ...` → `... v[N] ... v[N]` | Copy element or subvector from depth to top | **1 byte**:<br>• `[4:0]`: `offset` (0..31 depth below top)<br>• `[7:5]`: `size - 1` (0..7 for vector size 1..8) |
+| 14 | `CopyBase` | `... v[N] ...` → `... v[N] ... v[N]` | Copy element or subvector from bottom index to top of stack | **1 byte**:<br>• `[4:0]`: `index` (0..31 index from bottom of stack)<br>• `[7:5]`: `size - 1` (0..7 for vector size 1..8) |
+| 15 | `Slide` | `... d[D] k[K]` → `... k[K]` | Keep top K elements and drop D elements directly beneath them | **1 byte**:<br>• `[3:0]`: `keep - 1` (0..15 for 1..16 elements to keep)<br>• `[7:4]`: `drop - 1` (0..15 for 1..16 elements to drop) |
+| 16 | `Add` | `a b` → `a + b` | Scalar addition | *None* |
+| 17 | `Sub` | `a b` → `a - b` | Scalar subtraction | *None* |
+| 18 | `Mul` | `a b` → `a * b` | Scalar multiplication | *None* |
+| 19 | `Div` | `a b` → `a / b` | Scalar division | *None* |
+| 20 | `MulAdd` | `a b c` → `a * b + c` | Fused multiply-add | *None* |
+| 21 | `MulSub` | `a b c` → `a * b - c` | Fused multiply-subtract | *None* |
+| 22 | `SubMul` | `c a b` → `c - a * b` | Fused subtract-multiply | *None* |
+| 23 | `Neg` | `a` → `-a` | Scalar negation | *None* |
+| 24 | `Abs` | `a` → `\|a\|` | Scalar absolute value | *None* |
+| 25 | `Inv` | `a` → `1 / a` | Scalar reciprocal | *None* |
+| 26 | `Sqrt` | `a` → `sqrt(a)` | Square root | *None* |
+| 27 | `Sin` | `a` → `sin(a)` | Sine | *None* |
+| 28 | `Cos` | `a` → `cos(a)` | Cosine | *None* |
+| 29 | `Tan` | `a` → `tan(a)` | Tangent | *None* |
+| 30 | `Asin` | `a` → `asin(a)` | Arc sine | *None* |
+| 31 | `Acos` | `a` → `acos(a)` | Arc cosine | *None* |
+| 32 | `Atan2` | `x y` → `atan2(y, x)` | Four-quadrant inverse tangent | *None* |
+| 33 | `CosSin` | `t` → `cos(t) sin(t)` | Simultaneous scalar cosine and sine evaluation | *None* |
+| 34 | `PanTilt` | `v[3]` → `pan tilt` | Pan and tilt spherical angles from 3D line-of-sight vector $[v_0, v_1, v_2]$: $\text{pan} = \text{atan2}(v_1, v_0)$, $\text{tilt} = \text{atan2}(v_2, \sqrt{v_0^2 + v_1^2})$ | *None* |
+| 35 | `Ipow` | `a` → `a ^ exp` | Integer exponentiation | **1 byte**:<br>• `[7:0]`: `exp` (two's complement signed 8-bit int, -128..127) |
+| 36 | `Pow` | `a b` → `a ^ b` | Scalar power | *None* |
+| 37 | `Exp` | `a` → `exp(a)` | Exponential | *None* |
+| 38 | `Ln` | `a` → `ln(a)` | Natural logarithm | *None* |
+| 39 | `PushVec` | ` ` → `v[N]` | Push vector float literals onto stack | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$)<br>**Followed by**: `size * 4` bytes (IEEE 754 32-bit float literals) |
+| 40 | `AddVec` | `u[N] v[N]` → `(u + v)[N]` | Componentwise vector addition | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 41 | `SubVec` | `u[N] v[N]` → `(u - v)[N]` | Componentwise vector subtraction | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 42 | `MulVec` | `u[N] v[N]` → `(u * v)[N]` | Componentwise vector multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 43 | `DivVec` | `u[N] v[N]` → `(u / v)[N]` | Componentwise vector division | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 44 | `MulAddVec` | `a[N] b[N] c[N]` → `(a * b + c)[N]` | Componentwise fused multiply-add | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 45 | `MulSubVec` | `a[N] b[N] c[N]` → `(a * b - c)[N]` | Componentwise fused multiply-subtract | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 46 | `SubMulVec` | `c[N] a[N] b[N]` → `(c - a * b)[N]` | Componentwise fused subtract-multiply | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 47 | `NegVec` | `v[N]` → `(-v)[N]` | Componentwise vector negation | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 48 | `AbsVec` | `v[N]` → `\|v\|[N]` | Componentwise vector absolute value | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 49 | `InvVec` | `v[N]` → `(1 / v)[N]` | Componentwise vector reciprocal | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 50 | `DotVec` | `u[N] v[N]` → `(u · v)` | Vector dot product | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 51 | `NormSqVec` | `v[N]` → `\|\|v\|\|^2` | Squared Euclidean norm $\|v\|^2$ | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 52 | `SumVec` | `v[N]` → `sum(v)` | Sum of vector components | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 53 | `ScaleVec` | `v[N] s` → `(s * v)[N]` | Vector scalar multiplication | **1 byte**: `[7:0]`: `size - 1` (0..254 for vector dimension $N = 1..255$) |
+| 54 | `MulMat` | `v[rows]` → `(v * M)[cols]` | Vector-matrix multiplication $w = v \cdot M$ with immediate matrix $M$ | **1 byte dimension**:<br>• `[1:0]`: `rows - 1` (0..3 for 1..4 input dimensions / rows in $M$)<br>• `[3:2]`: Reserved (must be 0)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions / cols in $M$)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit floats ($M$ in column-major order: column by column) |
+| 55 | `Poly` | `t` → `P(t)[cols]` | Polynomial evaluation for scalar $t$ with immediate coefficients | **1 byte dimension**:<br>• `[3:0]`: `rows - 1` (0..15 for 1..16 coefficients per column / degree + 1)<br>• `[7:4]`: `cols - 1` (0..15 for 1..16 output dimensions)<br>**Followed by**: `rows * cols * 4` bytes of IEEE 754 32-bit float coefficients (degree by degree from highest order down to constant term: for each degree, column 0 to cols-1) |
 
 ### Embedded Memory & Acceleration Flags (C++)
 
@@ -113,15 +113,15 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **5,002 B** (~4.9 KB) | **11,424 B** (~11.2 KB) |
-| **ESP32-S3** (Xtensa LX7) | **6,360 B** (~6.2 KB) | **12,924 B** (~12.6 KB) |
+| **STM32G4** (Cortex-M4F) | **4,958 B** (~4.8 KB) | **11,380 B** (~11.1 KB) |
+| **ESP32-S3** (Xtensa LX7) | **6,302 B** (~6.2 KB) | **12,860 B** (~12.6 KB) |
 
 #### Fast Exp Math (`-DWICKED_USE_FAST_EXP_MATH`)
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **5,002 B** (~4.9 KB) | **10,496 B** (~10.2 KB) | **928 B (~0.9 KB)** |
-| **ESP32-S3** (Xtensa LX7) | **6,360 B** (~6.2 KB) | **12,028 B** (~11.7 KB) | **896 B (~0.9 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,958 B** (~4.8 KB) | **10,452 B** (~10.2 KB) | **928 B (~0.9 KB)** |
+| **ESP32-S3** (Xtensa LX7) | **6,302 B** (~6.2 KB) | **11,964 B** (~11.7 KB) | **896 B (~0.9 KB)** |
 
 #### Hardware CORDIC (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_STM32_CORDIC`)
 
@@ -129,7 +129,7 @@ Leverages STM32's on-chip CORDIC hardware accelerator (STM32G4, STM32H5, STM32U5
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **5,270 B** (~5.1 KB) | **5,768 B** (~5.6 KB) | **5,656 B (~5.5 KB)** |
+| **STM32G4** (Cortex-M4F) | **5,226 B** (~5.1 KB) | **5,724 B** (~5.6 KB) | **5,656 B (~5.5 KB)** |
 
 #### CMSIS-DSP (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_CMSIS_DSP`)
 
@@ -137,7 +137,7 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 
 | Target Architecture | Library-Only Flash (`.text` + `.rodata`) | Transitive Flash (Library + CMSIS-DSP + `libm` Delta) | Transitive Savings vs. Default |
 | :--- | :---: | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **5,002 B** (~4.9 KB) | **8,960 B** (~8.8 KB) | **2,464 B (~2.4 KB)** |
+| **STM32G4** (Cortex-M4F) | **4,958 B** (~4.8 KB) | **8,916 B** (~8.7 KB) | **2,464 B (~2.4 KB)** |
 
 > [!NOTE]
 > **Firmware Considerations for CORDIC:**
@@ -146,9 +146,9 @@ Replaces Newlib's standard trigonometry with ARM CMSIS-DSP table-interpolated fu
 > * **Range & Scale Normalization:** The embedded CORDIC helper automatically maps arbitrary angles in radians to $[-1.0, 1.0)$ for $\sin$/$\cos$, and scales Cartesian inputs by $1 / \max(|x|, |y|)$ for $\text{atan2}$, requiring zero table lookups or standard library calls.
 
 #### Section Breakdown (STM32G4, Thumb-2)
-* **Bytecode Validation (`ValidateInternal`, `ValidateSubroutine`, `WickedPostfixValidate`)**: ~1,036 B `.text`
-* **Bytecode Evaluation (`WickedPostfixEvaluate`, `WickedPostfixEvaluateInternal`)**: ~2,704 B `.text`
-* **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~616 B `.rodata`
+* **Bytecode Validation (`ValidateInternal`, `ValidateSubroutine`, `WickedPostfixValidate`)**: ~1,024 B `.text`
+* **Bytecode Evaluation (`WickedPostfixEvaluate`, `WickedPostfixEvaluateInternal`)**: ~2,696 B `.text`
+* **Opcode Names & Tables (`WickedPostfixOpToString`, rodata switch tables)**: ~592 B `.rodata`
 
 #### Helper Math Functions (`WickedMath.h`, Thumb-2)
 * **Fast Exponential (`wicked_fast_expf`)**: ~200 B `.text`

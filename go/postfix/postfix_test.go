@@ -1233,18 +1233,24 @@ func TestCallAndPiecewise(t *testing.T) {
 }
 
 func TestRetSemantics(t *testing.T) {
-	// Erased flash simulation: 0xFF terminates cleanly
-	flashExpr := &postfix.Expression{Prog: []uint8{255, 255}}
-	minCap, finalLen, ops, err := postfix.Validate(flashExpr, 2)
+	// Ret opcode terminates cleanly
+	retExpr := &postfix.Expression{Prog: []uint8{uint8(postfix.Operation_Ret), uint8(postfix.Operation_Ret)}}
+	minCap, finalLen, ops, err := postfix.Validate(retExpr, 2)
 	if err != nil {
 		t.Fatalf("unexpected validation error: %v", err)
 	}
 	if minCap != 2 || finalLen != 2 || len(ops) != 1 || ops[0] != postfix.Operation_Ret {
 		t.Errorf("unexpected validation result: cap=%d, len=%d, ops=%v", minCap, finalLen, ops)
 	}
-	gotStack := flashExpr.Evaluate([]float64{10, 20})
+	gotStack := retExpr.Evaluate([]float64{10, 20})
 	if !equalSlices(gotStack, []float64{10, 20}) {
 		t.Errorf("got %v, want [10 20]", gotStack)
+	}
+
+	// Erased flash simulation: 0xFF is undefined and fails validation
+	flashExpr := &postfix.Expression{Prog: []uint8{255, 255}}
+	if _, _, _, err := postfix.Validate(flashExpr, 2); err != postfix.ErrUndefinedOperation {
+		t.Errorf("got err %v, want ErrUndefinedOperation", err)
 	}
 
 	// Missing Ret fails validation
