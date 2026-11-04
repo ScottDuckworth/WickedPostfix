@@ -145,25 +145,6 @@ extern "C" float wicked_fast_logf(float x) {
   return log_m + static_cast<float>(exp) * LN2;
 }
 
-// Tableless fast powf(x, y) = fast_exp(y * fast_log(x)) with full edge cases.
-extern "C" float wicked_fast_powf(float x, float y) {
-  if (y == 0.0f) {
-    return 1.0f;
-  }
-  if (x == 0.0f) {
-    return (y > 0.0f) ? 0.0f : std::numeric_limits<float>::infinity();
-  }
-  if (x < 0.0f) {
-    if (std::floor(y) == y) {
-      bool is_odd = (std::abs(y) < 16777216.0f) && (static_cast<int32_t>(y) & 1);
-      float res = wicked_fast_expf(y * wicked_fast_logf(-x));
-      return is_odd ? -res : res;
-    }
-    return std::numeric_limits<float>::quiet_NaN();
-  }
-  return wicked_fast_expf(y * wicked_fast_logf(x));
-}
-
 // Derived powf: x^y = exp(y * ln(x))
 // Dead-strips Newlib's heavy powf from libm while dispatching through wicked_expf / wicked_logf.
 extern "C" float wicked_derived_powf(float x, float y) {

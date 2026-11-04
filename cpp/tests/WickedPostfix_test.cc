@@ -866,15 +866,18 @@ TEST(EvalTest, FastExpMathDirect) {
     float abs_err = std::abs(actual - expected);
     EXPECT_LT(abs_err, 5e-5f) << "wicked_fast_logf mismatch at x=" << x;
   }
+}
 
-  // Direct precision verification of wicked_fast_powf
-  EXPECT_NEAR(wicked_fast_powf(2.0f, 3.0f), 8.0f, 1e-4f);
-  EXPECT_NEAR(wicked_fast_powf(9.0f, 0.5f), 3.0f, 1e-4f);
-  EXPECT_EQ(wicked_fast_powf(0.0f, 0.0f), 1.0f);
-  EXPECT_EQ(wicked_fast_powf(0.0f, 4.0f), 0.0f);
-  EXPECT_EQ(wicked_fast_powf(5.0f, 0.0f), 1.0f);
-  EXPECT_NEAR(wicked_fast_powf(-2.0f, 3.0f), -8.0f, 1e-4f);
-  EXPECT_NEAR(wicked_fast_powf(-2.0f, 2.0f), 4.0f, 1e-4f);
+TEST(EvalTest, DerivedPowfDirect) {
+  // Direct precision and edge-case verification of wicked_derived_powf
+  EXPECT_NEAR(wicked_derived_powf(2.0f, 3.0f), 8.0f, 1e-4f);
+  EXPECT_NEAR(wicked_derived_powf(9.0f, 0.5f), 3.0f, 1e-4f);
+  EXPECT_EQ(wicked_derived_powf(0.0f, 0.0f), 1.0f);
+  EXPECT_EQ(wicked_derived_powf(0.0f, 4.0f), 0.0f);
+  EXPECT_EQ(wicked_derived_powf(5.0f, 0.0f), 1.0f);
+  EXPECT_NEAR(wicked_derived_powf(-2.0f, 3.0f), -8.0f, 1e-4f);
+  EXPECT_NEAR(wicked_derived_powf(-2.0f, 2.0f), 4.0f, 1e-4f);
+  EXPECT_TRUE(std::isnan(wicked_derived_powf(-2.0f, 2.5f)));
 }
 
 TEST(EvalTest, Sin) {

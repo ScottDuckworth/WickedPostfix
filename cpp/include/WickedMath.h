@@ -28,15 +28,6 @@ static inline float wicked_cordic_cosf(float t) {
 }
 #endif
 
-// Fast exponential math routines (< 5e-6 relative error, tableless)
-float wicked_fast_expf(float x);
-float wicked_fast_logf(float x);
-float wicked_fast_powf(float x, float y);
-
-// Derived powf: x^y = exp(y * ln(x))
-// Dead-strips Newlib's heavy powf from libm while dispatching through wicked_expf / wicked_logf.
-float wicked_derived_powf(float x, float y);
-
 // --- TRIGONOMETRIC DISPATCH CONFIGURATION ---
 
 #if defined(WICKED_USE_STM32_CORDIC)
@@ -111,6 +102,14 @@ static inline float wicked_atan2f(float y, float x) {
 
 // --- EXPONENTIAL / POWER MACRO DISPATCH ---
 
+// Fast exponential math routines (< 5e-6 relative error, tableless)
+float wicked_fast_expf(float x);
+float wicked_fast_logf(float x);
+
+// Derived powf: x^y = exp(y * ln(x))
+// Dead-strips Newlib's heavy powf from libm while dispatching through wicked_expf / wicked_logf.
+float wicked_derived_powf(float x, float y);
+
 #if defined(WICKED_CUSTOM_EXP)
 #define wicked_expf(x) WICKED_CUSTOM_EXP(x)
 #elif defined(WICKED_USE_FAST_EXP_MATH)
@@ -129,8 +128,6 @@ static inline float wicked_atan2f(float y, float x) {
 
 #if defined(WICKED_CUSTOM_POW)
 #define wicked_powf(x, y) WICKED_CUSTOM_POW(x, y)
-#elif defined(WICKED_USE_FAST_EXP_MATH)
-#define wicked_powf(x, y) wicked_fast_powf(x, y)
 #else
 #define wicked_powf(x, y) wicked_derived_powf(x, y)
 #endif
