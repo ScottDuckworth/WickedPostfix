@@ -152,13 +152,13 @@ extern "C" float wicked_fast_logf(float x) {
 // Derived powf: x^y = exp(y * ln(x))
 // Dead-strips Newlib's heavy powf from libm while dispatching through wicked_expf / wicked_logf.
 extern "C" float wicked_derived_powf(float x, float y) {
-  if (y == 0.0f) {
+  if (y == 0.0f) [[unlikely]] {
     return 1.0f;
   }
-  if (x == 0.0f) {
-    return (y > 0.0f) ? 0.0f : std::numeric_limits<float>::infinity();
-  }
-  if (x < 0.0f) {
+  if (x <= 0.0f) [[unlikely]] {
+    if (x == 0.0f) {
+      return (y > 0.0f) ? 0.0f : std::numeric_limits<float>::infinity();
+    }
     bool is_odd = false;
     if (std::abs(y) < 16777216.0f) {
       int32_t y_int = static_cast<int32_t>(y);
@@ -172,4 +172,3 @@ extern "C" float wicked_derived_powf(float x, float y) {
   }
   return wicked_expf(y * wicked_logf(x));
 }
-
