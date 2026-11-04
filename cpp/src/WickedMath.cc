@@ -88,7 +88,11 @@ extern "C" float wicked_fast_expf(float x) {
   // 2^(x * log2(e)) = 2^(k + f)
   constexpr float LOG2E = 1.4426950408889634f;
   float z = x * LOG2E;
-  int32_t k = static_cast<int32_t>(std::floor(z + 0.5f));
+  float w = z + 0.5f;
+  int32_t k = static_cast<int32_t>(w);
+  if (w < static_cast<float>(k)) {
+    k -= 1;
+  }
   float f = z - static_cast<float>(k);
 
   // Polynomial approximation of 2^f for f in [-0.5, 0.5]
@@ -155,12 +159,16 @@ extern "C" float wicked_derived_powf(float x, float y) {
     return (y > 0.0f) ? 0.0f : std::numeric_limits<float>::infinity();
   }
   if (x < 0.0f) {
-    if (std::floor(y) == y) {
-      bool is_odd = (std::abs(y) < 16777216.0f) && (static_cast<int32_t>(y) & 1);
-      float res = wicked_expf(y * wicked_logf(-x));
-      return is_odd ? -res : res;
+    bool is_odd = false;
+    if (std::abs(y) < 16777216.0f) {
+      int32_t y_int = static_cast<int32_t>(y);
+      if (static_cast<float>(y_int) != y) {
+        return std::numeric_limits<float>::quiet_NaN();
+      }
+      is_odd = (y_int & 1) != 0;
     }
-    return std::numeric_limits<float>::quiet_NaN();
+    float res = wicked_expf(y * wicked_logf(-x));
+    return is_odd ? -res : res;
   }
   return wicked_expf(y * wicked_logf(x));
 }

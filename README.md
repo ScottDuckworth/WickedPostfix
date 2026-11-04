@@ -77,7 +77,7 @@ For flash-constrained microcontrollers (e.g., STM32 with 32 KB or 64 KB flash), 
 Replaces Newlib's ~3.1 KB software range-reduction machinery and ~0.8 KB arctangent engine with lightweight hardware or DSP alternatives:
 
 * **`-DWICKED_USE_CMSIS_DSP`**: Routes `Sin`, `Cos`, and `CosSin` to ARM CMSIS-DSP (`arm_sin_f32`, `arm_cos_f32`, `arm_sin_cos_f32`), eliminating Newlib's ~3.1 KB range-reduction engine.
-* **`-DWICKED_USE_STM32_CORDIC`**: Routes `Sin`, `Cos`, `CosSin`, and `Atan2` (along with `PanTilt`) to the hardware CORDIC co-processor on STM32 microcontrollers (STM32G4, STM32H5, STM32U5, STM32H7R/S). Automatically discovers family headers (`stm32g4xx.h`, `stm32h5xx.h`, `stm32u5xx.h`, etc.) or accepts custom overrides via `-DWICKED_STM32_HEADER="<header.h>"`. Computes trigonometric functions in 4–8 CPU cycles with **0 bytes of lookup tables**, capturing **~5.5 KB** of flash savings and completely dead-stripping all Newlib trigonometric code.
+* **`-DWICKED_USE_STM32_CORDIC`**: Routes `Sin`, `Cos`, `CosSin`, and `Atan2` (along with `PanTilt`) to the hardware CORDIC co-processor on STM32 microcontrollers (STM32G4, STM32H5, STM32U5, STM32H7R/S). Automatically discovers family headers (`stm32g4xx.h`, `stm32h5xx.h`, `stm32u5xx.h`, etc.) or accepts custom overrides via `-DWICKED_STM32_HEADER="<header.h>"`. Computes trigonometric functions in 4–8 CPU cycles with **0 bytes of lookup tables**, capturing **~5.8 KB** of flash savings and completely dead-stripping all Newlib trigonometric code.
 * **Custom Backends**: Firmware targeting other hardware (e.g., TI TMU, NXP PowerQuad) can provide custom overrides directly:
   * `WICKED_CUSTOM_SIN(t)`
   * `WICKED_CUSTOM_COS(t)`
@@ -112,27 +112,27 @@ The tables below report measured flash memory consumption compiled with `-Os` fo
 
 | Target Architecture | Library-Only Flash | Transitive Flash |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,954 B** (~4.8 KB) | **11,376 B** (~11.1 KB) |
-| **ESP32-S3** (Xtensa LX7) | **6,290 B** (~6.1 KB) | **12,848 B** (~12.5 KB) |
+| **STM32G4** (Cortex-M4F) | **4,954 B** (~4.8 KB) | **11,372 B** (~11.1 KB) |
+| **ESP32-S3** (Xtensa LX7) | **6,246 B** (~6.1 KB) | **12,832 B** (~12.5 KB) |
 
 #### Fast Exponential Math (`-DWICKED_USE_FAST_EXP_MATH`)
 
 | Target Architecture | Library-Only Flash | Transitive Flash |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,954 B** (~4.8 KB) | **10,448 B** (~10.2 KB) |
-| **ESP32-S3** (Xtensa LX7) | **6,290 B** (~6.1 KB) | **11,952 B** (~11.7 KB) |
+| **STM32G4** (Cortex-M4F) | **4,938 B** (~4.8 KB) | **10,432 B** (~10.2 KB) |
+| **ESP32-S3** (Xtensa LX7) | **6,246 B** (~6.1 KB) | **11,920 B** (~11.6 KB) |
 
 #### ARM CMSIS-DSP (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_CMSIS_DSP`)
 
 | Target Architecture | Library-Only Flash | Transitive Flash |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **4,954 B** (~4.8 KB) | **8,912 B** (~8.7 KB) |
+| **STM32G4** (Cortex-M4F) | **4,938 B** (~4.8 KB) | **8,748 B** (~8.5 KB) |
 
 #### STM32 CORDIC (`-DWICKED_USE_FAST_EXP_MATH -DWICKED_USE_STM32_CORDIC`)
 
 | Target Architecture | Library-Only Flash | Transitive Flash |
 | :--- | :---: | :---: |
-| **STM32G4** (Cortex-M4F) | **5,222 B** (~5.1 KB) | **5,720 B** (~5.6 KB) |
+| **STM32G4** (Cortex-M4F) | **5,206 B** (~5.1 KB) | **5,556 B** (~5.4 KB) |
 
 #### Section Breakdown (STM32G4, Thumb-2)
 * **Bytecode Validation (`ValidateInternal`, `ValidateSubroutine`, `WickedPostfixValidate`)**: ~1,024 B `.text`
